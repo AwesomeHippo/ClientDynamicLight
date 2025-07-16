@@ -1,0 +1,15 @@
+[
+{
+  "modid": "clientdynamiclight",
+  "name": "Client Dynamic Light",
+  "description": "Client sided dynamic light from held items and nearby entities.",
+  "version": "1.0",
+  "mcversion": "${mcversion}",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["awesomehippo"],
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]

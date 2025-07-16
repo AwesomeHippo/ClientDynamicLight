@@ -1,0 +1,20 @@
+clientdynamiclight.title=Configuration de Client Dynamic Light
+clientdynamiclight.status.enabled=(Activé)
+clientdynamiclight.status.disabled=(Désactivé)
+clientdynamiclight.description=Vous pouvez personnaliser les objets et entités qui émettent de la lumière dans les fichiers json de configuration
+
+clientdynamiclight.burning_slider=Niveau de lumière pour les entités en feu :
+clientdynamiclight.nether=Nether
+clientdynamiclight.end=End
+clientdynamiclight.entity_lights=Lumières des entités
+clientdynamiclight.item_lights=Lumières des objets
+clientdynamiclight.reload=Recharger les configurations json
+clientdynamiclight.done=Terminé
+clientdynamiclight.cancel=Annuler
+
+clientdynamiclight.tooltip.burning_slider=Luminosité des entités en feu/chargées
+clientdynamiclight.tooltip.nether=Activer/désactiver le mod dans le Nether
+clientdynamiclight.tooltip.end=Activer/désactive le mod dans l’End
+clientdynamiclight.tooltip.entity_lights=Activer/désactiver les lumières des entités vivantes
+clientdynamiclight.tooltip.item_lights=Activer/désactiver les lumières des objets jetés/en main
+clientdynamiclight.tooltip.reload=Recharge les fichiers de configuration json du disque
