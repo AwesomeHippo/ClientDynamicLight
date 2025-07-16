@@ -1,20 +1,22 @@
 clientdynamiclight.title=Configuration de Client Dynamic Light
-clientdynamiclight.status.enabled=(Activé)
-clientdynamiclight.status.disabled=(Désactivé)
-clientdynamiclight.description=Vous pouvez personnaliser les objets et entités qui émettent de la lumière dans les fichiers json de configuration
+clientdynamiclight.status.enabled=Activé
+clientdynamiclight.status.disabled=Désactivé
+clientdynamiclight.description=Personnalisez les objets et entités émettant de la lumière dans les fichiers de configuration json
 
 clientdynamiclight.burning_slider=Niveau de lumière pour les entités en feu :
 clientdynamiclight.nether=Nether
 clientdynamiclight.end=End
 clientdynamiclight.entity_lights=Lumières des entités
 clientdynamiclight.item_lights=Lumières des objets
-clientdynamiclight.reload=Recharger les configurations json
-clientdynamiclight.done=Terminé
-clientdynamiclight.cancel=Annuler
+clientdynamiclight.dropped_item_lights=Par terre
+clientdynamiclight.wielded_item_lights=En mains
+clientdynamiclight.reload=Recharger les configurations
 
-clientdynamiclight.tooltip.burning_slider=Luminosité des entités en feu/chargées
-clientdynamiclight.tooltip.nether=Activer/désactiver le mod dans le Nether
-clientdynamiclight.tooltip.end=Activer/désactive le mod dans l’End
+clientdynamiclight.tooltip.burning_slider=Luminosité des entités en feu ou chargées
+clientdynamiclight.tooltip.nether=Activer/désactiver les lumières dynamiques dans le Nether
+clientdynamiclight.tooltip.end=Activer/désactiver les lumières dynamiques dans l’End
 clientdynamiclight.tooltip.entity_lights=Activer/désactiver les lumières des entités vivantes
-clientdynamiclight.tooltip.item_lights=Activer/désactiver les lumières des objets jetés/en main
-clientdynamiclight.tooltip.reload=Recharge les fichiers de configuration json du disque
+clientdynamiclight.tooltip.item_lights=Activer/désactiver les lumières des objets au sol ou tenus
+clientdynamiclight.tooltip.dropped_item_lights=Activer/désactiver les lumières des objets au sol
+clientdynamiclight.tooltip.wielded_item_lights=Activer/désactiver les lumières des objets tenus
+clientdynamiclight.tooltip.reload=Recharge les fichiers de configuration json depuis le disque

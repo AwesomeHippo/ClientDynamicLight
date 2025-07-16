@@ -14,18 +14,27 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
 
-public enum NodesConfigLoader {
+public enum ItemsConfigLoader {
     INSTANCE;
 
-    private static final String FILE_NAME = "config_nodes.json";
+    private static final String FILE_NAME = "config_items.json";
     private final List<ItemRule> itemRules = new ArrayList<>();
+
     private boolean disableInNether = false;
     private boolean disableInEnd = false;
-    private boolean disableNodes = false;
+    private boolean disableItems = false;
+    private boolean disableDroppedItems = false;
+    private boolean disableWieldedItems = false;
 
-    public Integer getLightLevel(ItemStack stack, World world) {
-        if (stack == null) return 0;
+    public Integer getLightLevel(ItemStack stack, World world, boolean isDropped, boolean isWielded) {
+        if (disableItems || stack == null) {
+            return 0;
+        }
+        if ((isDropped && disableDroppedItems) || (isWielded && disableWieldedItems)) {
+            return 0;
+        }
 
+        // check nether/end
         if (world != null) {
             int dimension = world.provider.dimensionId;
             if ((dimension == -1 && disableInNether) || (dimension == 1 && disableInEnd)) {
@@ -33,11 +42,13 @@ public enum NodesConfigLoader {
             }
         }
 
-        if (disableNodes) return 0;
-
+        // items rules
         for (ItemRule rule : itemRules) {
-            if (rule.matches(stack)) return rule.light;
+            if (rule.matches(stack)) {
+                return rule.light;
+            }
         }
+
         return 0;
     }
 
@@ -50,12 +61,13 @@ public enum NodesConfigLoader {
 
         try (Reader r = new InputStreamReader(Files.newInputStream(cfg.toPath()), StandardCharsets.UTF_8)) {
             Gson gson = new Gson();
-            JsonElement root = gson.fromJson(r, JsonElement.class);
+            JsonObject rootObj = gson.fromJson(r, JsonObject.class);
 
-            JsonObject rootObj = root.getAsJsonObject();
             disableInNether = rootObj.has("disableInNether") && rootObj.get("disableInNether").getAsBoolean();
             disableInEnd = rootObj.has("disableInEnd") && rootObj.get("disableInEnd").getAsBoolean();
-            disableNodes = rootObj.has("disableNodes") && rootObj.get("disableNodes").getAsBoolean();
+            disableItems = rootObj.has("disableItems") && rootObj.get("disableItems").getAsBoolean();
+            disableDroppedItems = rootObj.has("disableDroppedItems") && rootObj.get("disableDroppedItems").getAsBoolean();
+            disableWieldedItems = rootObj.has("disableWieldedItems") && rootObj.get("disableWieldedItems").getAsBoolean();
 
             Type listType = new TypeToken<List<JsonEntry>>(){}.getType();
             List<JsonEntry> list = gson.fromJson(rootObj.getAsJsonArray("items"), listType);
@@ -89,13 +101,15 @@ public enum NodesConfigLoader {
                         root = existing.getAsJsonObject();
                     }
                 } catch (Exception e) {
-                    System.err.println("Could not load existing nodes config for saving, creating new one");
+                    System.err.println("Could not load existing items config for saving, creating new one");
                 }
             }
 
             root.addProperty("disableInNether", disableInNether);
             root.addProperty("disableInEnd", disableInEnd);
-            root.addProperty("disableNodes", disableNodes);
+            root.addProperty("disableItems", disableItems);
+            root.addProperty("disableDroppedItems", disableDroppedItems);
+            root.addProperty("disableWieldedItems", disableWieldedItems);
             if (!root.has("items")) root.add("items", new JsonArray());
 
             try (Writer w = new OutputStreamWriter(Files.newOutputStream(cfg.toPath()), StandardCharsets.UTF_8)) {
@@ -113,7 +127,9 @@ public enum NodesConfigLoader {
             JsonObject root = new JsonObject();
             root.addProperty("disableInNether", false);
             root.addProperty("disableInEnd", false);
-            root.addProperty("disableNodes", false);
+            root.addProperty("disableItems", false);
+            root.addProperty("disableDroppedItems", false);
+            root.addProperty("disableWieldedItems", false);
 
             // all the default vanilla items that should emit light
             List<JsonEntry> defaults = Arrays.asList(
@@ -131,7 +147,7 @@ public enum NodesConfigLoader {
             try (Writer w = new OutputStreamWriter(Files.newOutputStream(f.toPath()), StandardCharsets.UTF_8)) {
                 new GsonBuilder().setPrettyPrinting().create().toJson(root, w);
             }
-            System.out.println("[ClientDynamicLight] Added default nodes config to " + f.getAbsolutePath());
+            System.out.println("[ClientDynamicLight] Added default items config to " + f.getAbsolutePath());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -159,12 +175,28 @@ public enum NodesConfigLoader {
         this.disableInEnd = disableInEnd;
     }
 
-    public boolean isDisableNodes() {
-        return disableNodes;
+    public boolean isDisableItems() {
+        return disableItems;
     }
 
-    public void setDisableNodes(boolean disableNodes) {
-        this.disableNodes = disableNodes;
+    public void setDisableItems(boolean disableItems) {
+        this.disableItems = disableItems;
+    }
+
+    public boolean isDisableDroppedItems() {
+        return disableDroppedItems;
+    }
+
+    public void setDisableDroppedItems(boolean disableDroppedItems) {
+        this.disableDroppedItems = disableDroppedItems;
+    }
+
+    public boolean isDisableWieldedItems() {
+        return disableWieldedItems;
+    }
+
+    public void setDisableWieldedItems(boolean disableWieldedItems) {
+        this.disableWieldedItems = disableWieldedItems;
     }
 
     /* config entries class */

@@ -1,7 +1,7 @@
 package com.awesomehippo.clientdynamiclight;
 
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
-import com.awesomehippo.clientdynamiclight.config.NodesConfigLoader;
+import com.awesomehippo.clientdynamiclight.config.ItemsConfigLoader;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 import cpw.mods.fml.relauncher.Side;
@@ -115,7 +115,7 @@ public enum DynamicLightHandler {
 
         // for entities players
         ItemStack held = player.getCurrentEquippedItem();
-        int level = (held != null) ? NodesConfigLoader.INSTANCE.getLightLevel(held, world) : 0;
+        int level = (held != null) ? ItemsConfigLoader.INSTANCE.getLightLevel(held, world, false, true) : 0;
         updateLightSource(world, player.getEntityId(), player.posX, player.posY, player.posZ, level, lightMap, lightPositions, activeEntities);
 
         // iter all the loaded entities (support other players holding light source)
@@ -135,11 +135,11 @@ public enum DynamicLightHandler {
             if (world.getBlock(blockX, blockY, blockZ).getMaterial() == Material.lava) continue;
 
             if (e instanceof EntityItem) {
-                lightLevel = NodesConfigLoader.INSTANCE.getLightLevel(((EntityItem) e).getEntityItem(), world);
+                lightLevel = ItemsConfigLoader.INSTANCE.getLightLevel(((EntityItem) e).getEntityItem(), world, true, false);
             } else if (e instanceof EntityPlayer) {
                 ItemStack heldItem = ((EntityPlayer) e).getCurrentEquippedItem();
                 if (heldItem != null) {
-                    lightLevel = NodesConfigLoader.INSTANCE.getLightLevel(heldItem, world);
+                    lightLevel = ItemsConfigLoader.INSTANCE.getLightLevel(heldItem, world, false, true);
                 }
             } else {
                 lightLevel = EntityConfigLoader.INSTANCE.getLightLevel(e);
@@ -158,8 +158,7 @@ public enum DynamicLightHandler {
     }
 
     // update or CREATE light sources for entities
-    private void updateLightSource(World world, int entityId, double x, double y, double z, int level,
-                                   Map<Integer, DynamicLightSource> lightMap, Map<Long, List<DynamicLightSource>> lightPositions, Set<Integer> activeEntities) {
+    private void updateLightSource(World world, int entityId, double x, double y, double z, int level, Map<Integer, DynamicLightSource> lightMap, Map<Long, List<DynamicLightSource>> lightPositions, Set<Integer> activeEntities) {
         int bx = MathHelper.floor_double(x);
         int by = MathHelper.floor_double(y);
         int bz = MathHelper.floor_double(z);

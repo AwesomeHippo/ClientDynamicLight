@@ -1,7 +1,7 @@
 package com.awesomehippo.clientdynamiclight;
 
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
-import com.awesomehippo.clientdynamiclight.config.NodesConfigLoader;
+import com.awesomehippo.clientdynamiclight.config.ItemsConfigLoader;
 import com.awesomehippo.clientdynamiclight.keybinds.KeyHandler;
 import cpw.mods.fml.client.registry.ClientRegistry;
 import cpw.mods.fml.common.FMLCommonHandler;
@@ -10,7 +10,7 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.common.MinecraftForge;
 
-@Mod(modid=ClientDynamicLight.MODID, name="Client Dynamic Light", version="1.0", acceptedMinecraftVersions="[1.7.10]", guiFactory = "com.awesomehippo.clientdynamiclight.gui.ConfigGuiFactory")
+@Mod(modid=ClientDynamicLight.MODID, name="Client Dynamic Light", version="1.1", acceptedMinecraftVersions="[1.7.10]", guiFactory = "com.awesomehippo.clientdynamiclight.gui.ConfigGuiFactory")
 public class ClientDynamicLight {
 
     public static final String MODID = "clientdynamiclight";
@@ -18,7 +18,7 @@ public class ClientDynamicLight {
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent e) {
         // load config files (still separated)
-        NodesConfigLoader.INSTANCE.loadConfig();
+        ItemsConfigLoader.INSTANCE.loadConfig();
         EntityConfigLoader.INSTANCE.loadConfig();
     }
 

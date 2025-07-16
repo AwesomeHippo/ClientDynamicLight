@@ -29,7 +29,7 @@ dependencies {
     compile 'org.ow2.asm:asm-all:5.0.3'
 }
 
-version = "1.0"
+version = "1.1"
 group= "com.awesomehippo.clientdynamiclight" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = "[1.7.10] Client Dynamic Light"
 

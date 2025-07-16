@@ -1,6 +1,6 @@
 clientdynamiclight.title=Client Dynamic Light Configuration
-clientdynamiclight.status.enabled=(Enabled)
-clientdynamiclight.status.disabled=(Disabled)
+clientdynamiclight.status.enabled=Enabled
+clientdynamiclight.status.disabled=Disabled
 clientdynamiclight.description=You can customize the items and entities that should emit light in the json configs
 
 clientdynamiclight.burning_slider=Burning Light Level:
@@ -8,13 +8,15 @@ clientdynamiclight.nether=Nether
 clientdynamiclight.end=End
 clientdynamiclight.entity_lights=Entity Lights
 clientdynamiclight.item_lights=Item Lights
+clientdynamiclight.dropped_item_lights=Dropped
+clientdynamiclight.wielded_item_lights=Wielded
 clientdynamiclight.reload=Reload Configs
-clientdynamiclight.done=Done
-clientdynamiclight.cancel=Cancel
 
 clientdynamiclight.tooltip.burning_slider=Brightness for burning/blowing entities
 clientdynamiclight.tooltip.nether=Toggle dynamic lights in Nether
 clientdynamiclight.tooltip.end=Toggle dynamic lights in the End
 clientdynamiclight.tooltip.entity_lights=Toggle lights from living entities
-clientdynamiclight.tooltip.item_lights=Toggle lights from items dropped/items in hands
+clientdynamiclight.tooltip.item_lights=Toggle lights from both dropped/wielded items
+clientdynamiclight.tooltip.dropped_item_lights=Toggle lights from dropped items
+clientdynamiclight.tooltip.wielded_item_lights=Toggle light from wielded items
 clientdynamiclight.tooltip.reload=Reloads the json configs from disk

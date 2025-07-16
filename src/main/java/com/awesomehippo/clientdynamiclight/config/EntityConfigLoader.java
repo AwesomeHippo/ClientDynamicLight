@@ -24,8 +24,11 @@ public enum EntityConfigLoader {
     private boolean disableEntities = false;
 
     public Integer getLightLevel(Entity e) {
+        if (disableEntities) {
+            return 0;
+        }
 
-        // first
+        // check nether/end
         if (e != null && e.worldObj != null) {
             int dimension = e.worldObj.provider.dimensionId;
             if ((dimension == -1 && disableInNether) || (dimension == 1 && disableInEnd)) {
@@ -33,16 +36,16 @@ public enum EntityConfigLoader {
             }
         }
 
-        if (disableEntities) return 0;
-
         // entities rules
         for (EntityRule r : EntitiesRules) {
             if (r.matches(e) && e.isEntityAlive()) {
                 return r.light;
             }
         }
-        // then the global for the burnings one
-        if (e.isBurning() && burningDefault > 0 && e.isEntityAlive()) return burningDefault;
+        // burning entities
+        if (e.isBurning() && burningDefault > 0 && e.isEntityAlive()) {
+            return burningDefault;
+        }
 
         return 0;
     }

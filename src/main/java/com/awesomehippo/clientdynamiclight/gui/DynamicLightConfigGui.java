@@ -2,7 +2,7 @@ package com.awesomehippo.clientdynamiclight.gui;
 
 import com.awesomehippo.clientdynamiclight.DynamicLightHandler;
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
-import com.awesomehippo.clientdynamiclight.config.NodesConfigLoader;
+import com.awesomehippo.clientdynamiclight.config.ItemsConfigLoader;
 import cpw.mods.fml.client.config.GuiButtonExt;
 import cpw.mods.fml.client.config.GuiSlider;
 import net.minecraft.client.gui.GuiButton;
@@ -23,13 +23,17 @@ public class DynamicLightConfigGui extends GuiScreen {
     private GuiButtonExt netherButton;
     private GuiButtonExt endButton;
     private GuiButtonExt disableEntitiesButton;
-    private GuiButtonExt disableNodesButton;
+    private GuiButtonExt disableItemsButton;
+    private GuiButtonExt disableDroppedItemsButton;
+    private GuiButtonExt disableWieldedItemsButton;
     private GuiButtonExt reloadButton;
 
     private boolean disableInNether = false;
     private boolean disableInEnd = false;
     private boolean disableEntities = false;
-    private boolean disableNodes = false;
+    private boolean disableItems = false;
+    private boolean disableDroppedItems = false;
+    private boolean disableWieldedItems = false;
     private int burningDefault = 15;
 
     public DynamicLightConfigGui(GuiScreen parentScreen) {
@@ -45,6 +49,9 @@ public class DynamicLightConfigGui extends GuiScreen {
     private String getToggleText(String label, boolean enabled) {
         return label + ": " + (enabled ? "§a✓ ON" : "§c✗ OFF"); // checkmark/cross looks good
     }
+
+    // for aligning both buttons
+    private int pairBtnWidth() { return (btnWidth() - 10) / 2; }
 
     @Override
     public void initGui() {
@@ -63,13 +70,13 @@ public class DynamicLightConfigGui extends GuiScreen {
                 StatCollector.translateToLocal("clientdynamiclight.burning_slider") + " ", "", 0, 15, burningDefault, false, true));
 
         y += componentSpacing();
+        int leftX = centerX - btnWidth() / 2;
+        int rightX = leftX + pairBtnWidth() + 10;
         buttonList.add(netherButton = new GuiButtonExt(
-                101, centerX - btnWidth() / 2, y, btnWidth(), btnHeight(),
+                101, leftX, y, pairBtnWidth(), btnHeight(),
                 getToggleText(StatCollector.translateToLocal("clientdynamiclight.nether"), !disableInNether)));
-
-        y += componentSpacing();
         buttonList.add(endButton = new GuiButtonExt(
-                102, centerX - btnWidth() / 2, y, btnWidth(), btnHeight(),
+                102, rightX, y, pairBtnWidth(), btnHeight(),
                 getToggleText(StatCollector.translateToLocal("clientdynamiclight.end"), !disableInEnd)));
 
         y += componentSpacing();
@@ -78,9 +85,17 @@ public class DynamicLightConfigGui extends GuiScreen {
                 getToggleText(StatCollector.translateToLocal("clientdynamiclight.entity_lights"), !disableEntities)));
 
         y += componentSpacing();
-        buttonList.add(disableNodesButton = new GuiButtonExt(
+        buttonList.add(disableItemsButton = new GuiButtonExt(
                 104, centerX - btnWidth() / 2, y, btnWidth(), btnHeight(),
-                getToggleText(StatCollector.translateToLocal("clientdynamiclight.item_lights"), !disableNodes)));
+                getToggleText(StatCollector.translateToLocal("clientdynamiclight.item_lights"), !disableItems)));
+
+        y += componentSpacing();
+        buttonList.add(disableDroppedItemsButton = new GuiButtonExt(
+                106, leftX, y, pairBtnWidth(), btnHeight(),
+                getToggleText(StatCollector.translateToLocal("clientdynamiclight.dropped_item_lights"), !disableDroppedItems)));
+        buttonList.add(disableWieldedItemsButton = new GuiButtonExt(
+                107, rightX, y, pairBtnWidth(), btnHeight(),
+                getToggleText(StatCollector.translateToLocal("clientdynamiclight.wielded_item_lights"), !disableWieldedItems)));
 
         y += componentSpacing();
         buttonList.add(reloadButton = new GuiButtonExt(
@@ -111,33 +126,51 @@ public class DynamicLightConfigGui extends GuiScreen {
                 break;
             case 103:
                 disableEntities = !disableEntities;
-                disableEntitiesButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.entuty_lights"), !disableEntities);
+                disableEntitiesButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.entity_lights"), !disableEntities);
                 break;
             case 104:
-                disableNodes = !disableNodes;
-                disableNodesButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.item_lights"), !disableNodes);
+                disableItems = !disableItems;
+                disableItemsButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.item_lights"), !disableItems);
+                if (disableItems) {
+                    disableDroppedItems = true;
+                    disableWieldedItems = true;
+                    disableDroppedItemsButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.dropped_item_lights"), !disableDroppedItems);
+                    disableWieldedItemsButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.wielded_item_lights"), !disableWieldedItems);
+                }
+                break;
+            case 106:
+                disableDroppedItems = !disableDroppedItems;
+                disableDroppedItemsButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.dropped_item_lights"), !disableDroppedItems);
+                break;
+            case 107:
+                disableWieldedItems = !disableWieldedItems;
+                disableWieldedItemsButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.wielded_item_lights"), !disableWieldedItems);
                 break;
             case 105: // reload
                 EntityConfigLoader.INSTANCE.loadConfig();
-                NodesConfigLoader.INSTANCE.loadConfig();
+                ItemsConfigLoader.INSTANCE.loadConfig();
                 loadGlobalSettings();
                 burningDefaultSlider.setValue(burningDefault);
                 updateSliderLabel();
                 netherButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.nether"), !disableInNether);
                 endButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.end"), !disableInEnd);
                 disableEntitiesButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.entity_lights"), !disableEntities);
-                disableNodesButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.item_lights"), !disableNodes);
+                disableItemsButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.item_lights"), !disableItems);
+                disableDroppedItemsButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.dropped_item_lights"), !disableDroppedItems);
+                disableWieldedItemsButton.displayString = getToggleText(StatCollector.translateToLocal("clientdynamiclight.wielded_item_lights"), !disableWieldedItems);
                 break;
             case 200: // save (button or escape)
                 EntityConfigLoader.INSTANCE.setBurningDefault((int) burningDefaultSlider.getValue());
                 EntityConfigLoader.INSTANCE.setDisableInNether(disableInNether);
                 EntityConfigLoader.INSTANCE.setDisableInEnd(disableInEnd);
                 EntityConfigLoader.INSTANCE.setDisableEntities(disableEntities);
-                NodesConfigLoader.INSTANCE.setDisableInNether(disableInNether);
-                NodesConfigLoader.INSTANCE.setDisableInEnd(disableInEnd);
-                NodesConfigLoader.INSTANCE.setDisableNodes(disableNodes);
+                ItemsConfigLoader.INSTANCE.setDisableInNether(disableInNether);
+                ItemsConfigLoader.INSTANCE.setDisableInEnd(disableInEnd);
+                ItemsConfigLoader.INSTANCE.setDisableItems(disableItems);
+                ItemsConfigLoader.INSTANCE.setDisableDroppedItems(disableDroppedItems);
+                ItemsConfigLoader.INSTANCE.setDisableWieldedItems(disableWieldedItems);
                 EntityConfigLoader.INSTANCE.saveConfig();
-                NodesConfigLoader.INSTANCE.saveConfig();
+                ItemsConfigLoader.INSTANCE.saveConfig();
                 mc.displayGuiScreen(parentScreen);
                 break;
             case 201: // cancel, no saving
@@ -155,8 +188,8 @@ public class DynamicLightConfigGui extends GuiScreen {
         String baseTitle = StatCollector.translateToLocal("clientdynamiclight.title");
         boolean modEnabled = DynamicLightHandler.INSTANCE.isEnabled();
         String status = modEnabled
-                ? " §a" + StatCollector.translateToLocal("clientdynamiclight.status.enabled")
-                : " §c" + StatCollector.translateToLocal("clientdynamiclight.status.disabled");
+                ? " §a(" + StatCollector.translateToLocal("clientdynamiclight.status.enabled") + ")"
+                : " §c(" + StatCollector.translateToLocal("clientdynamiclight.status.disabled") + ")";
         String fullTitle = baseTitle + status;
 
         int titleY = height / 12;
@@ -181,8 +214,12 @@ public class DynamicLightConfigGui extends GuiScreen {
             tooltip.add(StatCollector.translateToLocal("clientdynamiclight.tooltip.end"));
         else if (isMouseOver(disableEntitiesButton, mouseX, mouseY))
             tooltip.add(StatCollector.translateToLocal("clientdynamiclight.tooltip.entity_lights"));
-        else if (isMouseOver(disableNodesButton, mouseX, mouseY))
+        else if (isMouseOver(disableItemsButton, mouseX, mouseY))
             tooltip.add(StatCollector.translateToLocal("clientdynamiclight.tooltip.item_lights"));
+        else if (isMouseOver(disableDroppedItemsButton, mouseX, mouseY))
+            tooltip.add(StatCollector.translateToLocal("clientdynamiclight.tooltip.dropped_item_lights"));
+        else if (isMouseOver(disableWieldedItemsButton, mouseX, mouseY))
+            tooltip.add(StatCollector.translateToLocal("clientdynamiclight.tooltip.wielded_item_lights"));
         else if (isMouseOver(reloadButton, mouseX, mouseY))
             tooltip.add(StatCollector.translateToLocal("clientdynamiclight.tooltip.reload"));
 
@@ -213,11 +250,13 @@ public class DynamicLightConfigGui extends GuiScreen {
             EntityConfigLoader.INSTANCE.setDisableInNether(disableInNether);
             EntityConfigLoader.INSTANCE.setDisableInEnd(disableInEnd);
             EntityConfigLoader.INSTANCE.setDisableEntities(disableEntities);
-            NodesConfigLoader.INSTANCE.setDisableInNether(disableInNether);
-            NodesConfigLoader.INSTANCE.setDisableInEnd(disableInEnd);
-            NodesConfigLoader.INSTANCE.setDisableNodes(disableNodes);
+            ItemsConfigLoader.INSTANCE.setDisableInNether(disableInNether);
+            ItemsConfigLoader.INSTANCE.setDisableInEnd(disableInEnd);
+            ItemsConfigLoader.INSTANCE.setDisableItems(disableItems);
+            ItemsConfigLoader.INSTANCE.setDisableDroppedItems(disableDroppedItems);
+            ItemsConfigLoader.INSTANCE.setDisableWieldedItems(disableWieldedItems);
             EntityConfigLoader.INSTANCE.saveConfig();
-            NodesConfigLoader.INSTANCE.saveConfig();
+            ItemsConfigLoader.INSTANCE.saveConfig();
 
             mc.displayGuiScreen(parentScreen);
             return;
@@ -234,6 +273,8 @@ public class DynamicLightConfigGui extends GuiScreen {
         disableInNether = EntityConfigLoader.INSTANCE.isDisableInNether();
         disableInEnd = EntityConfigLoader.INSTANCE.isDisableInEnd();
         disableEntities = EntityConfigLoader.INSTANCE.isDisableEntities();
-        disableNodes = NodesConfigLoader.INSTANCE.isDisableNodes();
+        disableItems = ItemsConfigLoader.INSTANCE.isDisableItems();
+        disableDroppedItems = ItemsConfigLoader.INSTANCE.isDisableDroppedItems();
+        disableWieldedItems = ItemsConfigLoader.INSTANCE.isDisableWieldedItems();
     }
 }
