@@ -10,7 +10,7 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.common.MinecraftForge;
 
-@Mod(modid=ClientDynamicLight.MODID, name="Client Dynamic Light", version="1.1", acceptedMinecraftVersions="[1.7.10]", guiFactory = "com.awesomehippo.clientdynamiclight.gui.ConfigGuiFactory")
+@Mod(modid=ClientDynamicLight.MODID, name="Client Dynamic Light", version="2.0", acceptedMinecraftVersions="[1.7.10]", guiFactory = "com.awesomehippo.clientdynamiclight.gui.ConfigGuiFactory")
 public class ClientDynamicLight {
 
     public static final String MODID = "clientdynamiclight";
@@ -25,8 +25,8 @@ public class ClientDynamicLight {
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent e) {
-        FMLCommonHandler.instance().bus().register(DynamicLightHandler.INSTANCE);
-        MinecraftForge.EVENT_BUS.register(DynamicLightHandler.INSTANCE);
+        FMLCommonHandler.instance().bus().register(ClientDynamicLightHandler.INSTANCE);
+        MinecraftForge.EVENT_BUS.register(ClientDynamicLightHandler.INSTANCE);
 
         //should be at client anyway
         if (FMLCommonHandler.instance().getSide().isClient()) {

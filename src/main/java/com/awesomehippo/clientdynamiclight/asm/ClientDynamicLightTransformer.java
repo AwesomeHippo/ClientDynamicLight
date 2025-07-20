@@ -7,7 +7,7 @@ import org.objectweb.asm.tree.*;
 import static org.objectweb.asm.Opcodes.*;
 
 // asm transformer for our custom lighting
-public class DynamicLightTransformer implements IClassTransformer {
+public class ClientDynamicLightTransformer implements IClassTransformer {
 
     /* class / method names (dev and prod) */
     private static final String OBF_WORLD = "ahb";

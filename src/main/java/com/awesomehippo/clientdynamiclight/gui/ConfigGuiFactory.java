@@ -13,7 +13,7 @@ public class ConfigGuiFactory implements IModGuiFactory {
 
     @Override
     public Class<? extends GuiScreen> mainConfigGuiClass() {
-        return DynamicLightConfigGui.class;
+        return ClientDynamicLightConfigGui.class;
     }
 
     @Override

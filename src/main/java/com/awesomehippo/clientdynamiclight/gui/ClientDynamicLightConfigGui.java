@@ -1,6 +1,6 @@
 package com.awesomehippo.clientdynamiclight.gui;
 
-import com.awesomehippo.clientdynamiclight.DynamicLightHandler;
+import com.awesomehippo.clientdynamiclight.ClientDynamicLightHandler;
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.ItemsConfigLoader;
 import cpw.mods.fml.client.config.GuiButtonExt;
@@ -15,7 +15,7 @@ import java.util.List;
 
 import static com.awesomehippo.clientdynamiclight.keybinds.KeyHandler.toggleDynamicLight;
 
-public class DynamicLightConfigGui extends GuiScreen {
+public class ClientDynamicLightConfigGui extends GuiScreen {
 
     private final GuiScreen parentScreen;
 
@@ -36,7 +36,7 @@ public class DynamicLightConfigGui extends GuiScreen {
     private boolean disableWieldedItems = false;
     private int burningDefault = 15;
 
-    public DynamicLightConfigGui(GuiScreen parentScreen) {
+    public ClientDynamicLightConfigGui(GuiScreen parentScreen) {
         this.parentScreen = parentScreen;
         loadGlobalSettings();
     }
@@ -46,12 +46,11 @@ public class DynamicLightConfigGui extends GuiScreen {
     private int componentSpacing() { return 23; }
     private int btnWidth() { return Math.min(200, width - 40); }
     private int btnHeight() { return 20; }
+    private int pairBtnWidth() { return (btnWidth() - 10) / 2; } // for aligning both buttons
+
     private String getToggleText(String label, boolean enabled) {
         return label + ": " + (enabled ? "§a✓ ON" : "§c✗ OFF"); // checkmark/cross looks good
     }
-
-    // for aligning both buttons
-    private int pairBtnWidth() { return (btnWidth() - 10) / 2; }
 
     @Override
     public void initGui() {
@@ -186,7 +185,7 @@ public class DynamicLightConfigGui extends GuiScreen {
         final int centerX = width / 2;
 
         String baseTitle = StatCollector.translateToLocal("clientdynamiclight.title");
-        boolean modEnabled = DynamicLightHandler.INSTANCE.isEnabled();
+        boolean modEnabled = ClientDynamicLightHandler.INSTANCE.isEnabled();
         String status = modEnabled
                 ? " §a(" + StatCollector.translateToLocal("clientdynamiclight.status.enabled") + ")"
                 : " §c(" + StatCollector.translateToLocal("clientdynamiclight.status.disabled") + ")";
@@ -263,7 +262,7 @@ public class DynamicLightConfigGui extends GuiScreen {
         }
         // can toggle the mod even in the gui
         if (keyCode == toggleDynamicLight.getKeyCode()) {
-            DynamicLightHandler.INSTANCE.toggle();
+            ClientDynamicLightHandler.INSTANCE.toggle();
         }
         super.keyTyped(typedChar, keyCode);
     }

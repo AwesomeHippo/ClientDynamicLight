@@ -29,7 +29,7 @@ dependencies {
     compile 'org.ow2.asm:asm-all:5.0.3'
 }
 
-version = "1.1"
+version = "2.0"
 group= "com.awesomehippo.clientdynamiclight" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = "[1.7.10] Client Dynamic Light"
 
@@ -38,16 +38,11 @@ minecraft {
     runDir = "eclipse"
 }
 
-dependencies {
-    implementation 'it.unimi.dsi:fastutil:8.5.12'
-}
-
-
 // building the meta-inf
 jar {
     manifest {
         attributes(
-                'FMLCorePlugin': 'com.awesomehippo.clientdynamiclight.asm.DynamicLightCorePlugin',
+                'FMLCorePlugin': 'com.awesomehippo.clientdynamiclight.asm.ClientDynamicLightCorePlugin',
                 'FMLCorePluginContainsFMLMod': 'true',
                 'Manifest-Version': '1.0'
         )
