@@ -87,9 +87,9 @@ public class ClientDynamicLightTransformer implements IClassTransformer {
         inject.add(new VarInsnNode(ILOAD, 2)); // y
         inject.add(new VarInsnNode(ILOAD, 3)); // z
 
-        // custom handler at DynamicLightHandler
+        // custom handler at ClientDynamicLightHandler
         inject.add(new MethodInsnNode(INVOKESTATIC,
-                "com/awesomehippo/clientdynamiclight/DynamicLightHandler",
+                "com/awesomehippo/clientdynamiclight/ClientDynamicLightHandler",
                 "getLightValue",
                 "(L" + blockAccess + ";L" + block + ";III)I",
                 false));

@@ -29,7 +29,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-
 @SideOnly(Side.CLIENT)
 public enum ClientDynamicLightHandler {
     INSTANCE;
@@ -39,6 +38,7 @@ public enum ClientDynamicLightHandler {
     private static final int CLEANUP_TIMEOUT = 20;
     private static final int SCAN_RANGE = Math.min(Minecraft.getMinecraft().gameSettings.renderDistanceChunks * 16, 64);
 
+    // may replace these maps with an unified WorldLightData class
     private final ConcurrentHashMap<World, Map<Integer, DynamicLightSource>> worldLightsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<World, Map<Long, List<DynamicLightSource>>> worldLightPositions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<World, Map<Long, Integer>> worldDynamicMaxLevels = new ConcurrentHashMap<>();
@@ -158,8 +158,8 @@ public enum ClientDynamicLightHandler {
             Entity entity = world.getEntityByID(entry.getKey());
 
             // gone entity
-            if ((entity == null || entity.isDead) && source.targetLevel == 0) {
-                source.level = 0;
+            if (entity == null || entity.isDead) {
+                source.targetLevel = 0;
             }
 
             boolean changed = source.tickUpdateLevel();
@@ -169,7 +169,9 @@ public enum ClientDynamicLightHandler {
             }
 
             if (source.level == 0 && source.targetLevel == 0) {
+                // only now the level is at 0 so we can clean up
                 long pos = packPosition(source.x, source.y, source.z);
+
                 if (lightPositions != null) {
                     List<DynamicLightSource> list = lightPositions.get(pos);
                     if (list != null) {
@@ -275,6 +277,7 @@ public enum ClientDynamicLightHandler {
 
 
     // position utils since there's no blockpos on 1.7
+    // todo: we could cache some frequent positions?
     private static long packPosition(int x, int y, int z) {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) (y & 0xFFF) << 26) | (long) (z & 0x3FFFFFF);
     }
@@ -372,16 +375,19 @@ public enum ClientDynamicLightHandler {
                 Map<Integer, DynamicLightSource> lightMap = INSTANCE.worldLightsMap.computeIfAbsent(world, k -> new ConcurrentHashMap<>());
                 Map<Long, List<DynamicLightSource>> lightPositions = INSTANCE.worldLightPositions.computeIfAbsent(world, k -> new ConcurrentHashMap<>());
 
-                Set<Integer> activeEntities = new HashSet<>();
+                Map<Integer, Integer> seenLightLevels = new HashMap<>();
+                Map<Integer, double[]> seenPos = new HashMap<>();
 
                 // handle player’s wielded item light first
                 int pBlockX = MathHelper.floor_double(player.posX);
                 int pBlockY = MathHelper.floor_double(player.posY);
                 int pBlockZ = MathHelper.floor_double(player.posZ);
-                if (world.getBlock(pBlockX, pBlockY, pBlockZ).getMaterial() != Material.lava) {
+                boolean playerInLava = world.getBlock(pBlockX, pBlockY, pBlockZ).getMaterial() == Material.lava;
+                if (!playerInLava) {
                     ItemStack held = player.getCurrentEquippedItem();
                     int level = (held != null) ? ItemsConfigLoader.INSTANCE.getLightLevel(held, world, false, true) : 0;
-                    updateLightSource(world, player.getEntityId(), player.posX, player.posY, player.posZ, level, lightMap, lightPositions, activeEntities);
+                    seenLightLevels.put(player.getEntityId(), level);
+                    seenPos.put(player.getEntityId(), new double[]{player.posX, player.posY, player.posZ});
                 }
 
                 // then handle other entities
@@ -403,23 +409,66 @@ public enum ClientDynamicLightHandler {
                         lightLevel = EntityConfigLoader.INSTANCE.getLightLevel(e);
                     }
 
-                    // inactive sources marked for cleanup
-                    updateLightSource(world, e.getEntityId(), e.posX, e.posY, e.posZ, lightLevel, lightMap, lightPositions, activeEntities);
+                    if (lightLevel > 0 || lightMap.containsKey(e.getEntityId())) {
+                        seenLightLevels.put(e.getEntityId(), lightLevel);
+                        seenPos.put(e.getEntityId(), new double[]{e.posX, e.posY, e.posZ});
+                    }
                 }
 
-                lightMap.entrySet().removeIf(entry -> {
-                    if (!activeEntities.contains(entry.getKey())) {
-                        DynamicLightSource source = entry.getValue();
-                        source.targetLevel = 0;
+                Set<Integer> currentKeys = new HashSet<>(lightMap.keySet());
+                for (Integer id : currentKeys) {
+                    if (!seenLightLevels.containsKey(id)) {
+                        DynamicLightSource source = lightMap.get(id);
+                        if (source != null) {
+                            source.targetLevel = 0;
+                        }
                     }
-                    return false;
-                });
+                }
+
+                // update sources for seen entities
+                for (Map.Entry<Integer, Integer> entry : seenLightLevels.entrySet()) {
+                    int id = entry.getKey();
+                    int level = entry.getValue();
+                    double[] p = seenPos.get(id);
+                    updateLightSource(world, id, p[0], p[1], p[2], level, lightMap, lightPositions);
+                }
+
+                // transfer check for sources that need to increase light level
+                //TODO: this may be optimizable
+                for (Map.Entry<Integer, Integer> entry : seenLightLevels.entrySet()) {
+                    int id = entry.getKey();
+                    DynamicLightSource source = lightMap.get(id);
+                    if (source != null && source.level < source.targetLevel) {
+                        long pos = packPosition(source.x, source.y, source.z);
+                        int[] coord = unpackPosition(pos);
+                        int maxFading = 0;
+                        for (int dx = -1; dx <= 1; dx++) {
+                            for (int dy = -1; dy <= 1; dy++) {
+                                for (int dz = -1; dz <= 1; dz++) {
+                                    long neighborPos = packPosition(coord[0] + dx, coord[1] + dy, coord[2] + dz);
+                                    List<DynamicLightSource> list = lightPositions.get(neighborPos);
+                                    if (list != null) {
+                                        for (DynamicLightSource s : list) {
+                                            if (s.targetLevel <= 0 && s.level > 0) {
+                                                maxFading = Math.max(maxFading, s.level);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (maxFading > source.level) {
+                            source.level = maxFading;
+                            INSTANCE.updateMaxAndQueue(world, pos, lightPositions);
+                        }
+                    }
+                }
             });
         }
     }
 
     /* update/create light source for an entity */
-    private static void updateLightSource(World world, int entityId, double x, double y, double z, int level, Map<Integer, DynamicLightSource> lightMap, Map<Long, List<DynamicLightSource>> lightPositions, Set<Integer> activeEntities) {
+    private static void updateLightSource(World world, int entityId, double x, double y, double z, int level, Map<Integer, DynamicLightSource> lightMap, Map<Long, List<DynamicLightSource>> lightPositions) {
         int bx = MathHelper.floor_double(x);
         int by = MathHelper.floor_double(y);
         int bz = MathHelper.floor_double(z);
@@ -433,10 +482,13 @@ public enum ClientDynamicLightHandler {
         }
 
         if (source == null) {
-            source = new DynamicLightSource(bx, by, bz, level);
+            source = new DynamicLightSource(bx, by, bz, 0);
+            source.targetLevel = level;
             lightMap.put(entityId, source);
+
             List<DynamicLightSource> list = lightPositions.computeIfAbsent(newPos, k -> new ArrayList<>());
             list.add(source);
+
             INSTANCE.updateMaxAndQueue(world, newPos, lightPositions);
         } else {
             long oldPos = packPosition(source.x, source.y, source.z);
@@ -447,7 +499,6 @@ public enum ClientDynamicLightHandler {
                     oldList.remove(source);
                     if (oldList.isEmpty()) lightPositions.remove(oldPos);
                 }
-                // could make a function
                 INSTANCE.updateMaxAndQueue(world, oldPos, lightPositions);
                 source.x = bx;
                 source.y = by;
@@ -463,11 +514,11 @@ public enum ClientDynamicLightHandler {
         }
 
         source.lastSeen = world.getTotalWorldTime();
-        activeEntities.add(entityId);
     }
 
     // getter for config
     public boolean isEnabled() {
         return dynamicLightEnabled;
     }
+
 }
