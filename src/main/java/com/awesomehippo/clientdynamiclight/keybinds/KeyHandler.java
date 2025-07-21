@@ -1,7 +1,7 @@
 package com.awesomehippo.clientdynamiclight.keybinds;
 
-import com.awesomehippo.clientdynamiclight.DynamicLightHandler;
-import com.awesomehippo.clientdynamiclight.gui.DynamicLightConfigGui;
+import com.awesomehippo.clientdynamiclight.ClientDynamicLightHandler;
+import com.awesomehippo.clientdynamiclight.gui.ClientDynamicLightConfigGui;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.InputEvent.KeyInputEvent;
 import net.minecraft.client.Minecraft;
@@ -16,11 +16,11 @@ public class KeyHandler {
     @SubscribeEvent
     public void onKeyInput(KeyInputEvent event) {
         if (openConfig.isPressed()) {
-            Minecraft.getMinecraft().displayGuiScreen(new DynamicLightConfigGui(null));
+            Minecraft.getMinecraft().displayGuiScreen(new ClientDynamicLightConfigGui(null));
         }
 
         if (toggleDynamicLight.isPressed()) {
-            DynamicLightHandler.INSTANCE.toggle();
+            ClientDynamicLightHandler.INSTANCE.toggle();
         }
     }
 }

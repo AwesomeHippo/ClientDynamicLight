@@ -5,11 +5,11 @@ import java.util.Map;
 
 @IFMLLoadingPlugin.MCVersion("1.7.10")
 @IFMLLoadingPlugin.TransformerExclusions("com.awesomehippo.clientdynamiclight.asm")
-public class DynamicLightCorePlugin implements IFMLLoadingPlugin {
+public class ClientDynamicLightCorePlugin implements IFMLLoadingPlugin {
 
     @Override
     public String[] getASMTransformerClass() {
-        return new String[]{"com.awesomehippo.clientdynamiclight.asm.DynamicLightTransformer"};
+        return new String[]{"com.awesomehippo.clientdynamiclight.asm.ClientDynamicLightTransformer"};
     }
 
     @Override

@@ -1,7 +1,8 @@
 # Client Dynamic Light
 <span>
-Client sided dynamic light from held items and nearby entities. 
+Lightweight, multithreaded client-side dynamic lighting from held items and nearby entities. Smooth and fully configurable.
+To see the full mod description, its features and how to configure it, check out the CurseForge page: https://www.curseforge.com/minecraft/mc-mods/client-dynamic-light
 
-# 1.7.10 version
+# Version
 <span>
-Check out the repo branches to find the other versions
+This branch is for forge 1.7.10. Check other branches for the other versions.
