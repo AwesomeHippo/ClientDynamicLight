@@ -9,6 +9,7 @@ To see the full mod description, its features and how to configure it, check out
 This branch is for forge 1.7.10. Check other branches for the other versions.
 
 # Contributors
-<span>
+  
 - Special thanks to MayIHaveK for zh_CN translation. (MR #1)
+  
 - Special thanks to Thenemex for profiling/testing, which helped the mod to have better performance with almost no FPS impact
