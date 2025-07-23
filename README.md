@@ -1,4 +1,7 @@
 # Client Dynamic Light (Forge)
+[![Curseforge](https://img.shields.io/curseforge/dt/1302060?style=for-the-badge&logo=curseforge&color=e05d44)](https://www.curseforge.com/minecraft/mc-mods/client-dynamic-light)&nbsp;
+[![Discord](https://img.shields.io/discord/1162694113720799263?style=for-the-badge&logo=discord&logoColor=fff&label=%20&color=0a48c4)](https://discord.gg/VxF3spJkUS)
+
 <span>
 Lightweight, multithreaded client-side dynamic lighting from held items and nearby entities. Smooth and fully configurable.
 <br>
@@ -6,7 +9,7 @@ To see the full mod description, its features and how to configure it, check out
 
 # Version
 <span>
-This branch is for forge 1.7.10. Check other branches for the other versions.
+This branch is for <strong>Forge 1.7.10</strong>. Check other branches for the other versions.
 
 # Contributors
   
