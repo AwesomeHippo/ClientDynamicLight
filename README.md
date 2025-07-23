@@ -7,11 +7,11 @@ Lightweight, multithreaded client-side dynamic lighting from held items and near
 <br>
 To see the full mod description, its features and how to configure it, check out the CurseForge page: https://www.curseforge.com/minecraft/mc-mods/client-dynamic-light
 
-# Version
+## Version
 <span>
 This branch is for <strong>Forge 1.7.10</strong>. Check other branches for the other versions.
 
-# Contributors
+## Contributors
   
 - Special thanks to MayIHaveK for zh_CN translation. (MR #1)
   
