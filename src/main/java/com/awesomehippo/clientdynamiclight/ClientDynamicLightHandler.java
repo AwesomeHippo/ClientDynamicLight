@@ -467,11 +467,54 @@ public enum ClientDynamicLightHandler {
         }
     }
 
+
+    // special case to prevent some strange glitches in wayer
+    private static int[] findSpecialOffsetPosition(World world, int bx, int by, int bz) {
+        Material currentMaterial = world.getBlock(bx, by, bz).getMaterial();
+        int MAX_OFFSET_DISTANCE = 6;
+
+        if (currentMaterial != Material.water) {
+            return new int[]{bx, by, bz}; // (not water so it's fine)
+        }
+
+        // search for solid/non-water block below first
+        for (int dy = 1; dy <= MAX_OFFSET_DISTANCE; dy++) {
+            int offsetY = by - dy;
+            if (offsetY < 0) break;
+            Material mat = world.getBlock(bx, offsetY, bz).getMaterial();
+            if (mat != Material.water && mat != Material.air) { // (solid blocks)
+                return new int[]{bx, offsetY, bz};
+            }
+        }
+
+        // air below, if there is?
+        for (int dy = 1; dy <= MAX_OFFSET_DISTANCE; dy++) {
+            int offsetY = by - dy;
+            if (offsetY < 0) break;
+            Material mat = world.getBlock(bx, offsetY, bz).getMaterial();
+            if (mat == Material.air) {
+                return new int[]{bx, offsetY, bz};
+            }
+        }
+
+        return null;
+    }
+
     /* update/create light source for an entity */
     private static void updateLightSource(World world, int entityId, double x, double y, double z, int level, Map<Integer, DynamicLightSource> lightMap, Map<Long, List<DynamicLightSource>> lightPositions) {
         int bx = MathHelper.floor_double(x);
         int by = MathHelper.floor_double(y);
         int bz = MathHelper.floor_double(z);
+
+        // special case if in water to avoid some kind of glitch
+        int[] offsetPos = findSpecialOffsetPosition(world, bx, by, bz);
+        if (offsetPos == null) {
+            level = 0;
+        } else {
+            bx = offsetPos[0];
+            by = offsetPos[1];
+            bz = offsetPos[2];
+        }
 
         DynamicLightSource source = lightMap.get(entityId);
         long newPos = packPosition(bx, by, bz);
