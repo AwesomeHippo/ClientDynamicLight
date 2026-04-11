@@ -28,4 +28,7 @@ logs
 *.lock
 *.jar
 
+!/gradle/wrapper/gradle-wrapper.jar
+
+
 repo
