@@ -29,6 +29,10 @@ dependencies {
     compile 'org.ow2.asm:asm-all:5.0.3'
 }
 
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
 version = "2.0"
 group= "com.awesomehippo.clientdynamiclight" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
 archivesBaseName = "[1.7.10] Client Dynamic Light"
