@@ -2,6 +2,8 @@ package com.awesomehippo.clientdynamiclight;
 
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.ItemsConfigLoader;
+import com.awesomehippo.clientdynamiclight.integration.BackhandUtils;
+
 import cpw.mods.fml.client.FMLClientHandler;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -384,8 +386,7 @@ public enum ClientDynamicLightHandler {
                 int pBlockZ = MathHelper.floor_double(player.posZ);
                 boolean playerInLava = world.getBlock(pBlockX, pBlockY, pBlockZ).getMaterial() == Material.lava;
                 if (!playerInLava) {
-                    ItemStack held = player.getCurrentEquippedItem();
-                    int level = (held != null) ? ItemsConfigLoader.INSTANCE.getLightLevel(held, world, false, true) : 0;
+                    int level = getHeldItemLightLevel(player, world);
                     seenLightLevels.put(player.getEntityId(), level);
                     seenPos.put(player.getEntityId(), new double[]{player.posX, player.posY, player.posZ});
                 }
@@ -401,10 +402,7 @@ public enum ClientDynamicLightHandler {
                     if (e instanceof EntityItem) {
                         lightLevel = ItemsConfigLoader.INSTANCE.getLightLevel(((EntityItem) e).getEntityItem(), world, true, false);
                     } else if (e instanceof EntityPlayer) {
-                        ItemStack heldItem = ((EntityPlayer) e).getCurrentEquippedItem();
-                        if (heldItem != null) {
-                            lightLevel = ItemsConfigLoader.INSTANCE.getLightLevel(heldItem, world, false, true);
-                        }
+                        lightLevel = getHeldItemLightLevel((EntityPlayer) e, world);
                     } else {
                         lightLevel = EntityConfigLoader.INSTANCE.getLightLevel(e);
                     }
@@ -467,6 +465,19 @@ public enum ClientDynamicLightHandler {
         }
     }
 
+    private static int getHeldItemLightLevel(EntityPlayer player, World world) {
+        ItemStack held = player.getCurrentEquippedItem();
+        ItemStack offhand = BackhandUtils.getOffhandItem(player); // returns null if Backhand isn't present or on error, so it's safe to call even without Backhand
+
+        int level = 0;
+        if (held != null) {
+            level = Math.max(level, ItemsConfigLoader.INSTANCE.getLightLevel(held, world, false, true));
+        }
+        if (offhand != null) {
+            level = Math.max(level, ItemsConfigLoader.INSTANCE.getLightLevel(offhand, world, false, true));
+        }
+        return level;
+	}
 
     // special case to prevent some strange glitches in wayer
     private static int[] findSpecialOffsetPosition(World world, int bx, int by, int bz) {
