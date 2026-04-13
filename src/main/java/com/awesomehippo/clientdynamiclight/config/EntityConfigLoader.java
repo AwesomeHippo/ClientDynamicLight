@@ -10,6 +10,7 @@ import com.google.gson.JsonObject;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
 import net.minecraft.entity.monster.EntityCreeper;
+import net.minecraft.world.World;
 
 public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
     public static final EntityConfigLoader INSTANCE = new EntityConfigLoader();
@@ -18,9 +19,19 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
         super(EntityConfig.class, "config_entities.json");
     }
 
-    public int getLightLevel(Entity e) {
+    public int getLightLevel(Entity e, World world) {
         if (!this.config.enabled) {
             return 0;
+        }
+
+        {
+            final boolean disableInNether = !this.config.enableInNether;
+            final boolean disableInEnd = !this.config.enableInEnd;
+
+            int dimension = world.provider.dimensionId;
+            if ((dimension == -1 && disableInNether) || (dimension == 1 && disableInEnd)) {
+                return 0;
+            }
         }
 
         for (EntityRule r : this.config.entities) {
@@ -49,12 +60,17 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
         }
 
         raw.addProperty("enabled", !raw.get("disableEntities").getAsBoolean());
+        raw.addProperty("enableInNether", !raw.get("disableInNether").getAsBoolean());
+        raw.addProperty("enableInEnd", !raw.get("disableInEnd").getAsBoolean());
 
         return true;
     }
 
     public static class EntityConfig {
         public boolean enabled = true;
+        public boolean enableInNether = true;
+        public boolean enableInEnd = true;
+
         public int burningDefault = 15;
 
         private List<EntityRule> entities = Arrays.asList(

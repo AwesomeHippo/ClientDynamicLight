@@ -24,6 +24,16 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
             return 0;
         }
 
+        {
+            final boolean disableInNether = !this.config.enableInNether;
+            final boolean disableInEnd = !this.config.enableInEnd;
+
+            int dimension = world.provider.dimensionId;
+            if ((dimension == -1 && disableInNether) || (dimension == 1 && disableInEnd)) {
+                return 0;
+            }
+        }
+
         if (isDropped && !this.config.enableDroppedItems) {
             return 0;
         }
@@ -51,11 +61,13 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
         if (raw.get("enabled") != null) {
             return false; // Already migrated.
         }
-        
+
         raw.addProperty("enabled", !raw.get("disableItems").getAsBoolean());
         raw.addProperty("enableDroppedItems", !raw.get("disableDroppedItems").getAsBoolean());
         raw.addProperty("enableWieldedItems", !raw.get("disableWieldedItems").getAsBoolean());
-        
+        raw.addProperty("enableInNether", !raw.get("disableInNether").getAsBoolean());
+        raw.addProperty("enableInEnd", !raw.get("disableInEnd").getAsBoolean());
+
         return true;
     }
 
@@ -63,6 +75,8 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
         public boolean enabled = true;
         public boolean enableDroppedItems = true;
         public boolean enableWieldedItems = true;
+        public boolean enableInNether = true;
+        public boolean enableInEnd = true;
 
         private List<ItemRule> items = Arrays.asList(
             new ItemRule("minecraft:torch", 0, 14),

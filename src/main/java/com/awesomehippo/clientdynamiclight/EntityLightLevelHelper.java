@@ -2,7 +2,6 @@ package com.awesomehippo.clientdynamiclight;
 
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader;
-import com.awesomehippo.clientdynamiclight.config.LightingConfigLoader;
 import com.awesomehippo.clientdynamiclight.integration.BackhandUtils;
 
 import net.minecraft.block.material.Material;
@@ -20,16 +19,6 @@ public class EntityLightLevelHelper {
      *         level to use for this entity.
      */
     public static int getLightLevel(World world, Entity entity) {
-        {
-            final boolean disableInNether = !LightingConfigLoader.INSTANCE.getConfig().enableInNether;
-            final boolean disableInEnd = !LightingConfigLoader.INSTANCE.getConfig().enableInEnd;
-
-            int dimension = world.provider.dimensionId;
-            if ((dimension == -1 && disableInNether) || (dimension == 1 && disableInEnd)) {
-                return 0;
-            }
-        }
-
         int blockX = MathHelper.floor_double(entity.posX);
         int blockY = MathHelper.floor_double(entity.posY);
         int blockZ = MathHelper.floor_double(entity.posZ);
@@ -50,7 +39,7 @@ public class EntityLightLevelHelper {
         }
 
         // Base light level for this entity type. i.e, magma cubes glow.
-        return EntityConfigLoader.INSTANCE.getLightLevel(entity);
+        return EntityConfigLoader.INSTANCE.getLightLevel(entity, world);
     }
 
     private static int getPlayerLightLevel(EntityPlayer player, World world) {

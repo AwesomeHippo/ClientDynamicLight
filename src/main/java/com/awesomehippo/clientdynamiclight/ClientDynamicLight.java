@@ -7,7 +7,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader;
-import com.awesomehippo.clientdynamiclight.config.LightingConfigLoader;
 import com.awesomehippo.clientdynamiclight.integration.BackhandUtils;
 import com.awesomehippo.clientdynamiclight.keybinds.KeyHandler;
 
@@ -37,7 +36,6 @@ public class ClientDynamicLight {
     	BackhandUtils._init();
 
         // load config files (still separated)
-    	LightingConfigLoader.INSTANCE.load();
     	ItemConfigLoader.INSTANCE.load();
         EntityConfigLoader.INSTANCE.load();
     }

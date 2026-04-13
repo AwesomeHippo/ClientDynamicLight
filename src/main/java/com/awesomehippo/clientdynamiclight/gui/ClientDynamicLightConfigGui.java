@@ -5,7 +5,6 @@ import org.lwjgl.input.Keyboard;
 import com.awesomehippo.clientdynamiclight.ClientDynamicLightHandler;
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader;
-import com.awesomehippo.clientdynamiclight.config.LightingConfigLoader;
 import com.awesomehippo.clientdynamiclight.gui.controls.CGuiScreen;
 import com.awesomehippo.clientdynamiclight.keybinds.KeyHandler;
 
@@ -33,13 +32,13 @@ public class ClientDynamicLightConfigGui extends CGuiScreen {
         this.pairNextControls();
         this.appendToggle(
             "clientdynamiclight.nether", "clientdynamiclight.tooltip.nether",
-            () -> LightingConfigLoader.INSTANCE.getConfig().enableInNether,
-            (value) -> LightingConfigLoader.INSTANCE.getConfig().enableInNether = value
+            () -> EntityConfigLoader.INSTANCE.getConfig().enableInNether,
+            (value) -> EntityConfigLoader.INSTANCE.getConfig().enableInNether = value
         );
         this.appendToggle(
             "clientdynamiclight.end", "clientdynamiclight.tooltip.end",
-            () -> LightingConfigLoader.INSTANCE.getConfig().enableInEnd,
-            (value) -> LightingConfigLoader.INSTANCE.getConfig().enableInEnd = value
+            () -> EntityConfigLoader.INSTANCE.getConfig().enableInEnd,
+            (value) -> EntityConfigLoader.INSTANCE.getConfig().enableInEnd = value
         );
 
         // SECTION: Light Type Toggles
@@ -74,7 +73,6 @@ public class ClientDynamicLightConfigGui extends CGuiScreen {
         this.appendButton(
             "clientdynamiclight.reload", "clientdynamiclight.tooltip.reload",
             () -> {
-                LightingConfigLoader.INSTANCE.load();
                 EntityConfigLoader.INSTANCE.load();
                 ItemConfigLoader.INSTANCE.load();
                 this.load();
@@ -103,7 +101,6 @@ public class ClientDynamicLightConfigGui extends CGuiScreen {
     @Override
     public void save() {
         super.save();
-        LightingConfigLoader.INSTANCE.save();
         EntityConfigLoader.INSTANCE.save();
         ItemConfigLoader.INSTANCE.save();
     }
