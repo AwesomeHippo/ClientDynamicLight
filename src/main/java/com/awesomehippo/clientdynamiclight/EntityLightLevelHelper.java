@@ -52,10 +52,6 @@ public class EntityLightLevelHelper {
     }
 
     private static int getPlayerLightLevel(EntityPlayer player, World world) {
-        if (!ItemConfigLoader.INSTANCE.enabled(world, ItemCheckType.WIELDED)) {
-            return -1; // Wielded item lighting is disabled, skip.
-        }
-
         int lightLevel = -1; // if we don't find a light level, we'll skip lighting for this player.
 
         // Check their wielded items.
