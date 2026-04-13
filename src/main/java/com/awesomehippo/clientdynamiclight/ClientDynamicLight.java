@@ -1,17 +1,23 @@
 package com.awesomehippo.clientdynamiclight;
 
+import java.io.File;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
-import com.awesomehippo.clientdynamiclight.config.ItemsConfigLoader;
+import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader;
+import com.awesomehippo.clientdynamiclight.config.LightingConfigLoader;
 import com.awesomehippo.clientdynamiclight.integration.BackhandUtils;
 import com.awesomehippo.clientdynamiclight.keybinds.KeyHandler;
+
 import cpw.mods.fml.client.registry.ClientRegistry;
 import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.Loader;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.common.MinecraftForge;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 @Mod(modid=ClientDynamicLight.MODID, name="Client Dynamic Light", version="2.0", acceptedMinecraftVersions="[1.7.10]", guiFactory = "com.awesomehippo.clientdynamiclight.gui.ConfigGuiFactory")
 public class ClientDynamicLight {
@@ -26,11 +32,14 @@ public class ClientDynamicLight {
             return;
         }
         
+        getConfigDir().mkdirs(); // ensure config dir exists
+        
     	BackhandUtils._init();
 
         // load config files (still separated)
-        ItemsConfigLoader.INSTANCE.loadConfig();
-        EntityConfigLoader.INSTANCE.loadConfig();
+    	LightingConfigLoader.INSTANCE.load();
+    	ItemConfigLoader.INSTANCE.load();
+        EntityConfigLoader.INSTANCE.load();
     }
 
 
@@ -47,4 +56,9 @@ public class ClientDynamicLight {
         ClientRegistry.registerKeyBinding(KeyHandler.toggleDynamicLight);
         FMLCommonHandler.instance().bus().register(new KeyHandler());
     }
+    
+    public static File getConfigDir() {
+        return new File(Loader.instance().getConfigDir(), "clientdynamiclight");
+    }
+    
 }

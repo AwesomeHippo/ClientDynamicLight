@@ -1,8 +1,18 @@
 package com.awesomehippo.clientdynamiclight;
 
-import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
-import com.awesomehippo.clientdynamiclight.config.ItemsConfigLoader;
-import com.awesomehippo.clientdynamiclight.integration.BackhandUtils;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import cpw.mods.fml.client.FMLClientHandler;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
@@ -13,23 +23,13 @@ import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MathHelper;
 import net.minecraft.world.EnumSkyBlock;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
-
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 @SideOnly(Side.CLIENT)
 public enum ClientDynamicLightHandler {
@@ -380,32 +380,17 @@ public enum ClientDynamicLightHandler {
                 Map<Integer, Integer> seenLightLevels = new HashMap<>();
                 Map<Integer, double[]> seenPos = new HashMap<>();
 
-                // handle player’s wielded item light first
-                int pBlockX = MathHelper.floor_double(player.posX);
-                int pBlockY = MathHelper.floor_double(player.posY);
-                int pBlockZ = MathHelper.floor_double(player.posZ);
-                boolean playerInLava = world.getBlock(pBlockX, pBlockY, pBlockZ).getMaterial() == Material.lava;
-                if (!playerInLava) {
-                    int level = getHeldItemLightLevel(player, world);
-                    seenLightLevels.put(player.getEntityId(), level);
+                // player's lighting
+                int playerLightLevel = EntityLightLevelHelper.getLightLevel(world, player);
+                if (playerLightLevel >= 0) {
+                    seenLightLevels.put(player.getEntityId(), playerLightLevel);
                     seenPos.put(player.getEntityId(), new double[]{player.posX, player.posY, player.posZ});
                 }
 
                 // then handle other entities
                 for (Entity e : entities) {
-                    int blockX = MathHelper.floor_double(e.posX);
-                    int blockY = MathHelper.floor_double(e.posY);
-                    int blockZ = MathHelper.floor_double(e.posZ);
-                    if (world.getBlock(blockX, blockY, blockZ).getMaterial() == Material.lava) continue;
-
-                    int lightLevel = 0;
-                    if (e instanceof EntityItem) {
-                        lightLevel = ItemsConfigLoader.INSTANCE.getLightLevel(((EntityItem) e).getEntityItem(), world, true, false);
-                    } else if (e instanceof EntityPlayer) {
-                        lightLevel = getHeldItemLightLevel((EntityPlayer) e, world);
-                    } else {
-                        lightLevel = EntityConfigLoader.INSTANCE.getLightLevel(e);
-                    }
+                    int lightLevel = EntityLightLevelHelper.getLightLevel(world, e);
+                    if (lightLevel < 0) continue; // skip if the helper indicates to skip
 
                     if (lightLevel > 0 || lightMap.containsKey(e.getEntityId())) {
                         seenLightLevels.put(e.getEntityId(), lightLevel);
@@ -464,20 +449,6 @@ public enum ClientDynamicLightHandler {
             });
         }
     }
-
-    private static int getHeldItemLightLevel(EntityPlayer player, World world) {
-        ItemStack held = player.getCurrentEquippedItem();
-        ItemStack offhand = BackhandUtils.getOffhandItem(player); // returns null if Backhand isn't present or on error, so it's safe to call even without Backhand
-
-        int level = 0;
-        if (held != null) {
-            level = Math.max(level, ItemsConfigLoader.INSTANCE.getLightLevel(held, world, false, true));
-        }
-        if (offhand != null) {
-            level = Math.max(level, ItemsConfigLoader.INSTANCE.getLightLevel(offhand, world, false, true));
-        }
-        return level;
-	}
 
     // special case to prevent some strange glitches in wayer
     private static int[] findSpecialOffsetPosition(World world, int bx, int by, int bz) {
