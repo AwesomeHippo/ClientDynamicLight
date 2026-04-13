@@ -44,7 +44,7 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
 
         for (ItemRule rule : this.config.items) {
             if (rule.matches(stack)) {
-                return rule.light;
+                return rule.actualLightLevel();
             }
         }
 
@@ -99,6 +99,10 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
             super(id);
             this.meta = meta;
             this.light = light;
+        }
+
+        public int actualLightLevel() {
+            return Math.max(0, Math.min(this.light, 15));
         }
 
         public boolean matches(ItemStack other) {

@@ -36,7 +36,7 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
 
         for (EntityRule r : this.config.entities) {
             if (r.matches(e) && e.isEntityAlive()) {
-                return r.light;
+                return r.actualLightLevel();
             }
         }
 
@@ -91,6 +91,10 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
             this.light = light;
             this.special = special;
             this.burningOnly = burningOnly;
+        }
+
+        public int actualLightLevel() {
+            return Math.max(0, Math.min(this.light, 15));
         }
 
         public boolean matches(Entity e) {
