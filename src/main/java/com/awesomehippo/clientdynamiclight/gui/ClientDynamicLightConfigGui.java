@@ -26,8 +26,14 @@ public class ClientDynamicLightConfigGui extends CGuiScreen {
             (value) -> EntityConfigLoader.INSTANCE.getConfig().burningDefault = value
         );
 
-        // SECTION: Dimension Toggles
+        // SECTION: Entities
         this.spacer();
+
+        this.appendToggle(
+            "clientdynamiclight.entity_lights", "clientdynamiclight.tooltip.entity_lights",
+            () -> EntityConfigLoader.INSTANCE.getConfig().enabled,
+            (value) -> EntityConfigLoader.INSTANCE.getConfig().enabled = value
+        );
 
         this.pairNextControls();
         this.appendToggle(
@@ -41,18 +47,25 @@ public class ClientDynamicLightConfigGui extends CGuiScreen {
             (value) -> EntityConfigLoader.INSTANCE.getConfig().enableInEnd = value
         );
 
-        // SECTION: Light Type Toggles
+        // SECTION: Items
+        this.spacer();
 
-        this.pairNextControls();
-        this.appendToggle(
-            "clientdynamiclight.entity_lights", "clientdynamiclight.tooltip.entity_lights",
-            () -> EntityConfigLoader.INSTANCE.getConfig().enabled,
-            (value) -> EntityConfigLoader.INSTANCE.getConfig().enabled = value
-        );
         this.appendToggle(
             "clientdynamiclight.item_lights", "clientdynamiclight.tooltip.item_lights",
             () -> ItemConfigLoader.INSTANCE.getConfig().enabled,
             (value) -> ItemConfigLoader.INSTANCE.getConfig().enabled = value
+        );
+
+        this.pairNextControls();
+        this.appendToggle(
+            "clientdynamiclight.nether", "clientdynamiclight.tooltip.nether",
+            () -> ItemConfigLoader.INSTANCE.getConfig().enableInNether,
+            (value) -> ItemConfigLoader.INSTANCE.getConfig().enableInNether = value
+        );
+        this.appendToggle(
+            "clientdynamiclight.end", "clientdynamiclight.tooltip.end",
+            () -> ItemConfigLoader.INSTANCE.getConfig().enableInEnd,
+            (value) -> ItemConfigLoader.INSTANCE.getConfig().enableInEnd = value
         );
 
         this.pairNextControls();
