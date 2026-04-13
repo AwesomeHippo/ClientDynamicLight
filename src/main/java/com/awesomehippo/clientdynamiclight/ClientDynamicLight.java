@@ -21,6 +21,11 @@ public class ClientDynamicLight {
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent e) {
+        if (!FMLCommonHandler.instance().getSide().isClient()) {
+            LOGGER.warn("ClientDynamicLight is a client-side mod. This mod does nothing when installed on the server.");
+            return;
+        }
+        
     	BackhandUtils._init();
 
         // load config files (still separated)
@@ -31,14 +36,15 @@ public class ClientDynamicLight {
 
     @Mod.EventHandler
     public void init(FMLInitializationEvent e) {
+        if (!FMLCommonHandler.instance().getSide().isClient()) {
+            return; // Don't register anything if we're on the server, just in case
+        }
+        
         FMLCommonHandler.instance().bus().register(ClientDynamicLightHandler.INSTANCE);
         MinecraftForge.EVENT_BUS.register(ClientDynamicLightHandler.INSTANCE);
 
-        //should be at client anyway
-        if (FMLCommonHandler.instance().getSide().isClient()) {
-            ClientRegistry.registerKeyBinding(KeyHandler.openConfig);
-            ClientRegistry.registerKeyBinding(KeyHandler.toggleDynamicLight);
-            FMLCommonHandler.instance().bus().register(new KeyHandler());
-        }
+        ClientRegistry.registerKeyBinding(KeyHandler.openConfig);
+        ClientRegistry.registerKeyBinding(KeyHandler.toggleDynamicLight);
+        FMLCommonHandler.instance().bus().register(new KeyHandler());
     }
 }
