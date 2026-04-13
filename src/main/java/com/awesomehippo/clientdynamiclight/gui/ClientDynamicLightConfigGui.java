@@ -18,14 +18,6 @@ public class ClientDynamicLightConfigGui extends CGuiScreen {
 
     @Override
     protected void initControls() {
-        // SECTION: Sliders
-
-        this.appendSlider(
-            "clientdynamiclight.burning_slider", "clientdynamiclight.tooltip.burning_slider",
-            () -> EntityConfigLoader.INSTANCE.getConfig().burningDefault,
-            (value) -> EntityConfigLoader.INSTANCE.getConfig().burningDefault = value
-        );
-
         // SECTION: Entities
         this.spacer();
 
@@ -33,6 +25,12 @@ public class ClientDynamicLightConfigGui extends CGuiScreen {
             "clientdynamiclight.entity_lights", "clientdynamiclight.tooltip.entity_lights",
             () -> EntityConfigLoader.INSTANCE.getConfig().enabled,
             (value) -> EntityConfigLoader.INSTANCE.getConfig().enabled = value
+        );
+
+        this.appendSlider(
+            "clientdynamiclight.burning_slider", "clientdynamiclight.tooltip.burning_slider",
+            () -> EntityConfigLoader.INSTANCE.getConfig().burningDefault,
+            (value) -> EntityConfigLoader.INSTANCE.getConfig().burningDefault = value
         );
 
         this.pairNextControls();
