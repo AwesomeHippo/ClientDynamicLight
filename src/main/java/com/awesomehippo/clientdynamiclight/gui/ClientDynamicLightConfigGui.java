@@ -78,6 +78,12 @@ public class ClientDynamicLightConfigGui extends CGuiScreen {
             (value) -> ItemConfigLoader.INSTANCE.getConfig().enableWieldedItems = value
         );
 
+        this.appendToggle(
+            "clientdynamiclight.wearing_item_lights", "clientdynamiclight.tooltip.wearing_item_lights",
+            () -> ItemConfigLoader.INSTANCE.getConfig().enableWearingItems,
+            (value) -> ItemConfigLoader.INSTANCE.getConfig().enableWearingItems = value
+        );
+
         // SECTION: Reload Button
         this.spacer();
 

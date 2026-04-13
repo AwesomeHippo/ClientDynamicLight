@@ -2,10 +2,12 @@ package com.awesomehippo.clientdynamiclight;
 
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader;
+import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader.ItemCheckType;
 import com.awesomehippo.clientdynamiclight.integration.BackhandUtils;
 
 import net.minecraft.block.material.Material;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;
@@ -26,59 +28,107 @@ public class EntityLightLevelHelper {
 
         if (entity instanceof EntityItem) {
             // Items dropped on the ground.
-            return ItemConfigLoader.INSTANCE.getLightLevel(
-                ((EntityItem) entity).getEntityItem(),
-                world,
-                true, // is dropped
-                false // not wielded
-            );
+            if (!ItemConfigLoader.INSTANCE.enabled(world, ItemCheckType.DROPPED)) {
+                return -1; // skip
+            }
+
+            return ItemConfigLoader.INSTANCE.getLightLevel(((EntityItem) entity).getEntityItem());
         }
 
         if (entity instanceof EntityPlayer) {
             return getPlayerLightLevel((EntityPlayer) entity, world);
         }
 
-        // Base light level for this entity type. i.e, magma cubes glow.
-        return EntityConfigLoader.INSTANCE.getLightLevel(entity, world);
+        if (entity instanceof EntityLivingBase) {
+            return getEntityLivingLightLevel((EntityLivingBase) entity, world);
+        }
+
+        // Base light level for the non-living.
+        if (EntityConfigLoader.INSTANCE.enabled(world)) {
+            return EntityConfigLoader.INSTANCE.getLightLevel(entity);
+        } else {
+            return -1; // skip
+        }
     }
 
     private static int getPlayerLightLevel(EntityPlayer player, World world) {
-        int lightLevel = 0;
+        if (!ItemConfigLoader.INSTANCE.enabled(world, ItemCheckType.WIELDED)) {
+            return -1; // Wielded item lighting is disabled, skip.
+        }
 
-        // The item that the player is holding (or has in their offhand) may emit light,
-        // so we need to check that.
-        lightLevel = getHeldItemLightLevel(player, world);
+        int lightLevel = -1; // if we don't find a light level, we'll skip lighting for this player.
 
-        // TODO check armor.
+        // Check their wielded items.
+        if (ItemConfigLoader.INSTANCE.enabled(world, ItemCheckType.WIELDED)) {
+            lightLevel = Math.max(
+                lightLevel,
+                getMaxLightLevel(
+                    world,
+                    player.getCurrentEquippedItem(), // main hand, possibly null
+                    BackhandUtils.getOffhandItem(player) // returns null if Backhand isn't present or on error.
+                )
+            );
+        }
+
+        // Check their armor.
+        if (ItemConfigLoader.INSTANCE.enabled(world, ItemCheckType.WEARING)) {
+            lightLevel = Math.max(
+                lightLevel,
+                getArmorLightLevel(player, world)
+            );
+        }
 
         return lightLevel;
     }
 
-    private static int getHeldItemLightLevel(EntityPlayer player, World world) {
-        ItemStack held = player.getCurrentEquippedItem();
-        ItemStack offhand = BackhandUtils.getOffhandItem(player); // returns null if Backhand isn't present or on error.
+    private static int getEntityLivingLightLevel(EntityLivingBase entity, World world) {
+        if (!EntityConfigLoader.INSTANCE.enabled(world)) {
+            return -1; // skip
+        }
 
-        int level = 0;
-        if (held != null) {
-            level = Math.max(
-                level,
-                ItemConfigLoader.INSTANCE.getLightLevel(
-                    held,
+        // Check their base light level, may result in -1.
+        int lightLevel = EntityConfigLoader.INSTANCE.getLightLevel(entity);
+
+        // Check their wielded item.
+        if (ItemConfigLoader.INSTANCE.enabled(world, ItemCheckType.WIELDED)) {
+            lightLevel = Math.max(
+                lightLevel,
+                getMaxLightLevel(
                     world,
-                    false, // not dropped
-                    true // is wielded
+                    entity.getEquipmentInSlot(0) // main hand
                 )
             );
         }
-        if (offhand != null) {
+
+        // Check their armor.
+        if (ItemConfigLoader.INSTANCE.enabled(world, ItemCheckType.WEARING)) {
+            lightLevel = Math.max(
+                lightLevel,
+                getArmorLightLevel(entity, world)
+            );
+        }
+
+        return lightLevel;
+    }
+
+    private static int getArmorLightLevel(EntityLivingBase entity, World world) {
+        return getMaxLightLevel(
+            world,
+            entity.getEquipmentInSlot(1), // boots
+            entity.getEquipmentInSlot(2), // leggings
+            entity.getEquipmentInSlot(3), // chestplate
+            entity.getEquipmentInSlot(4)  // helmet
+        );
+    }
+
+    private static int getMaxLightLevel(World world, ItemStack... stacks) {
+        int level = 0;
+        for (ItemStack stack : stacks) {
+            if (stack == null) continue;
+
             level = Math.max(
                 level,
-                ItemConfigLoader.INSTANCE.getLightLevel(
-                    offhand,
-                    world,
-                    false, // not dropped
-                    true // is wielded
-                )
+                ItemConfigLoader.INSTANCE.getLightLevel(stack)
             );
         }
         return level;

@@ -19,21 +19,23 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
         super(EntityConfig.class, "config_entities.json");
     }
 
-    public int getLightLevel(Entity e, World world) {
+    public boolean enabled(World world) {
         if (!this.config.enabled) {
-            return 0;
+            return false;
         }
 
-        {
-            final boolean disableInNether = !this.config.enableInNether;
-            final boolean disableInEnd = !this.config.enableInEnd;
+        final boolean disableInNether = !this.config.enableInNether;
+        final boolean disableInEnd = !this.config.enableInEnd;
 
-            int dimension = world.provider.dimensionId;
-            if ((dimension == -1 && disableInNether) || (dimension == 1 && disableInEnd)) {
-                return 0;
-            }
+        int dimension = world.provider.dimensionId;
+        if ((dimension == -1 && disableInNether) || (dimension == 1 && disableInEnd)) {
+            return false;
         }
 
+        return true;
+    }
+
+    public int getLightLevel(Entity e) {
         for (EntityRule r : this.config.entities) {
             if (r.matches(e) && e.isEntityAlive()) {
                 return r.actualLightLevel();
@@ -45,7 +47,7 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
             return this.config.burningDefault;
         }
 
-        return 0;
+        return -1; // No match, skip.
     }
 
     @Override

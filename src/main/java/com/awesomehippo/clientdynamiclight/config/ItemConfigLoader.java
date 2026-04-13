@@ -19,36 +19,43 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
         super(ItemConfig.class, "config_items.json");
     }
 
-    public int getLightLevel(ItemStack stack, World world, boolean isDropped, boolean isWielded) {
-        if (!this.config.enabled || stack == null) {
-            return 0;
+    public boolean enabled(World world, ItemCheckType type) {
+        if (!this.config.enabled) {
+            return false;
         }
 
-        {
-            final boolean disableInNether = !this.config.enableInNether;
-            final boolean disableInEnd = !this.config.enableInEnd;
-
-            int dimension = world.provider.dimensionId;
-            if ((dimension == -1 && disableInNether) || (dimension == 1 && disableInEnd)) {
-                return 0;
-            }
+        if (type == ItemCheckType.DROPPED && !this.config.enableDroppedItems) {
+            return false;
         }
 
-        if (isDropped && !this.config.enableDroppedItems) {
-            return 0;
+        if (type == ItemCheckType.WIELDED && !this.config.enableWieldedItems) {
+            return false;
         }
 
-        if (isWielded && !this.config.enableWieldedItems) {
-            return 0;
+        if (type == ItemCheckType.WEARING && !this.config.enableWearingItems) {
+            return false;
         }
 
+        final int dimension = world.provider.dimensionId;
+
+        if (dimension == -1 && !this.config.enableInNether) {
+            return false;
+        }
+        if (dimension == 1 && !this.config.enableInEnd) {
+            return false;
+        }
+
+        return true;
+    }
+
+    public int getLightLevel(ItemStack stack) {
         for (ItemRule rule : this.config.items) {
             if (rule.matches(stack)) {
                 return rule.actualLightLevel();
             }
         }
 
-        return 0;
+        return -1; // No match, skip.
     }
 
     @Override
@@ -73,10 +80,13 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
 
     public static class ItemConfig {
         public boolean enabled = true;
-        public boolean enableDroppedItems = true;
-        public boolean enableWieldedItems = true;
+
         public boolean enableInNether = true;
         public boolean enableInEnd = true;
+
+        public boolean enableDroppedItems = true;
+        public boolean enableWieldedItems = true;
+        public boolean enableWearingItems = false;
 
         private List<ItemRule> items = Arrays.asList(
             new ItemRule("minecraft:torch", 0, 14),
@@ -143,6 +153,12 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
             return this.item;
         }
 
+    }
+
+    public static enum ItemCheckType {
+        DROPPED,
+        WIELDED,
+        WEARING,
     }
 
 }
