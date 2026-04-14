@@ -24,7 +24,7 @@ public class EntityLightLevelHelper {
         int blockX = MathHelper.floor_double(entity.posX);
         int blockY = MathHelper.floor_double(entity.posY);
         int blockZ = MathHelper.floor_double(entity.posZ);
-        if (world.getBlock(blockX, blockY, blockZ).getMaterial() == Material.lava) return -1; // avoid graphical glitches.
+        if (world.getBlock(blockX, blockY, blockZ).getMaterial() == Material.lava) return -1;
 
         if (entity instanceof EntityItem) {
             // Items dropped on the ground.
