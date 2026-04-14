@@ -9,6 +9,7 @@ import com.awesomehippo.clientdynamiclight.gui.controls.CGuiScreen;
 import com.awesomehippo.clientdynamiclight.keybinds.KeyHandler;
 
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.util.StatCollector;
 
 public class ClientDynamicLightConfigGui extends CGuiScreen {
 
@@ -112,6 +113,27 @@ public class ClientDynamicLightConfigGui extends CGuiScreen {
             () -> {
                 this.closeScreen();
             }
+        );
+    }
+
+    @Override
+    protected void drawCustom(int mouseX, int mouseY, float partialTicks) {
+        final int centerX = width / 2;
+
+        String baseTitle = StatCollector.translateToLocal("clientdynamiclight.title");
+        String status = ClientDynamicLightHandler.INSTANCE.isEnabled()
+            ? " §a(" + StatCollector.translateToLocal("clientdynamiclight.status.enabled") + ")"
+            : " §c(" + StatCollector.translateToLocal("clientdynamiclight.status.disabled") + ")";
+        String fullTitle = baseTitle + status;
+
+        int titleY = this.height / 12;
+        this.drawCenteredString(this.fontRendererObj, fullTitle, centerX, titleY, 0xFFFFFF);
+
+        int infoY = titleY + this.fontRendererObj.FONT_HEIGHT + 6;
+        this.drawCenteredString(
+            this.fontRendererObj,
+            StatCollector.translateToLocal("clientdynamiclight.description"),
+            centerX, infoY, 0xCCCCCC
         );
     }
 

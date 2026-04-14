@@ -5,11 +5,8 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import com.awesomehippo.clientdynamiclight.ClientDynamicLightHandler;
-
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.util.StatCollector;
 
 public abstract class CGuiScreen extends GuiScreen {
     private static final int BUTTON_HEIGHT = 20;
@@ -74,29 +71,15 @@ public abstract class CGuiScreen extends GuiScreen {
     }
 
     @Override
-    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
-        drawDefaultBackground();
-
-        final int centerX = width / 2;
-
-        String baseTitle = StatCollector.translateToLocal("clientdynamiclight.title");
-        String status = ClientDynamicLightHandler.INSTANCE.isEnabled()
-            ? " §a(" + StatCollector.translateToLocal("clientdynamiclight.status.enabled") + ")"
-            : " §c(" + StatCollector.translateToLocal("clientdynamiclight.status.disabled") + ")";
-        String fullTitle = baseTitle + status;
-
-        int titleY = this.height / 12;
-        drawCenteredString(this.fontRendererObj, fullTitle, centerX, titleY, 0xFFFFFF);
-
-        int infoY = titleY + this.fontRendererObj.FONT_HEIGHT + 6;
-        drawCenteredString(
-            this.fontRendererObj,
-            StatCollector.translateToLocal("clientdynamiclight.description"),
-            centerX, infoY, 0xCCCCCC
-        );
-
+    public final void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        this.drawDefaultBackground();
+        this.drawCustom(mouseX, mouseY, partialTicks);
         super.drawScreen(mouseX, mouseY, partialTicks);
-        drawTooltip(mouseX, mouseY);
+        this.drawTooltip(mouseX, mouseY);
+    }
+
+    protected void drawCustom(int mouseX, int mouseY, float partialTicks) {
+        // Override to draw custom stuff on the screen.
     }
 
     private void drawTooltip(int mouseX, int mouseY) {
