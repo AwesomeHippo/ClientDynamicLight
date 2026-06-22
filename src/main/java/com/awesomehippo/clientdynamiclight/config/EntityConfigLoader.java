@@ -100,7 +100,7 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
         }
 
         public boolean matches(Entity e) {
-            if (!this.clazz().isInstance(e)) {
+            if (this.clazz() == null || !this.clazz().isInstance(e)) {
                 return false;
             }
 
