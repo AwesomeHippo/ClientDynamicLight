@@ -82,7 +82,7 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
 
     }
 
-    public static class EntityRule extends LazyEnitityRule {
+    public static class EntityRule extends LazyEntityRule {
         private int light;
 
         private boolean burningOnly;
@@ -126,13 +126,13 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
      * Looks up the entity lazily during the first call to matches and caches the
      * result.
      */
-    public static class LazyEnitityRule {
+    public static class LazyEntityRule {
         private String id;
 
         private transient boolean hasLookedUp = false;
         private transient Class<? extends Entity> entityClass = null;
 
-        public LazyEnitityRule(String id) {
+        public LazyEntityRule(String id) {
             this.id = id;
         }
 
@@ -143,7 +143,7 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
                 this.entityClass = (Class<? extends Entity>) EntityList.stringToClassMapping.get(this.id);
 
                 if (this.entityClass == null) {
-                    ClientDynamicLight.LOGGER.warn("Unknown item in config: " + this.id);
+                    ClientDynamicLight.LOGGER.warn("Unknown entity in config: " + this.id);
                 }
             }
 
