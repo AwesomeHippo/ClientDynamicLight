@@ -29,7 +29,7 @@ public class CGuiSlider extends GuiSlider implements CGuiControl {
             min, max, 0,
             false, drawStr
         );
-        this.tooltip = StatCollector.translateToLocal(tooltipLocaleKey);
+        this.tooltip = tooltipLocaleKey == null ? null : StatCollector.translateToLocal(tooltipLocaleKey);
         this.loader = loader;
         this.saver = saver;
     }

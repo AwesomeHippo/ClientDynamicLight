@@ -21,7 +21,7 @@ public class CGuiButton extends GuiButtonExt implements CGuiControl {
             rect.x, rect.y, rect.width, rect.height,
             StatCollector.translateToLocal(localeKey)
         );
-        this.tooltip = StatCollector.translateToLocal(tooltipLocaleKey);
+        this.tooltip = tooltipLocaleKey == null ? null : StatCollector.translateToLocal(tooltipLocaleKey);
         this.onClick = onClick;
     }
 

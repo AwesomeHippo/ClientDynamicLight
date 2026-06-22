@@ -29,7 +29,7 @@ public class CGuiToggle extends GuiButtonExt implements CGuiControl {
             ""
         );
         this.label = StatCollector.translateToLocal(localeKey);
-        this.tooltip = StatCollector.translateToLocal(tooltipLocaleKey);
+        this.tooltip = tooltipLocaleKey == null ? null : StatCollector.translateToLocal(tooltipLocaleKey);
         this.loader = loader;
         this.saver = saver;
     }
