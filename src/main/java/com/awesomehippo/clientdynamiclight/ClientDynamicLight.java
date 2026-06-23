@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2025-2026 AwesomeHippo and contributors
+ * All modifications must stay under MPL 2.0 and credit original authors.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 package com.awesomehippo.clientdynamiclight;
 
 import java.io.File;
@@ -18,7 +24,7 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.common.MinecraftForge;
 
-@Mod(modid=ClientDynamicLight.MODID, name="Client Dynamic Light", version="2.0", acceptedMinecraftVersions="[1.7.10]", guiFactory = "com.awesomehippo.clientdynamiclight.gui.ConfigGuiFactory")
+@Mod(modid=ClientDynamicLight.MODID, name="Client Dynamic Light", version="3.0", acceptedMinecraftVersions="[1.7.10]", guiFactory = "com.awesomehippo.clientdynamiclight.gui.ConfigGuiFactory")
 public class ClientDynamicLight {
 
     public static final String MODID = "clientdynamiclight";
