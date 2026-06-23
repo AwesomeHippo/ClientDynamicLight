@@ -23,9 +23,12 @@ run
 runs
 run-data
 logs
+repo
 *.sh
 *.log
 *.lock
-*.jar
+*.old
 
-repo
+*.jar
+# still allow gradle-wrapper.jar
+!/gradle/wrapper/gradle-wrapper.jar
