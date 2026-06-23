@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.awesomehippo.clientdynamiclight.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "LightEngineMixin",
+    "LevelRendererMixin",
+    "EntityRenderDispatcherMixin"
+  ],
+  "refmap": "clientdynamiclight.refmap.json"
+}
