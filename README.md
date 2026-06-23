@@ -6,13 +6,19 @@
 Lightweight, multithreaded client-side dynamic lighting from held items and nearby entities. Smooth and fully configurable.
 <br>
 To see the full mod description, its features and how to configure it, check out the CurseForge page: https://www.curseforge.com/minecraft/mc-mods/client-dynamic-light
+<br>
+Version 2.2 now with GTNH's Backhand support! ([#4](https://github.com/AwesomeHippo/ClientDynamicLight/pull/4)
 
+Version 3.0 now with armor support! ([#5](https://github.com/AwesomeHippo/ClientDynamicLight/pull/5)
 ## Version
 <span>
 This branch is for <strong>Forge 1.7.10</strong>. Check other branches for the other versions.
 
 ## Contributors
+
+- Huge thanks to **e3ndr** for GTNH's Backhand support, armor support and code refactoring! (MR [#4](https://github.com/AwesomeHippo/ClientDynamicLight/pull/4) [#5](https://github.com/AwesomeHippo/ClientDynamicLight/pull/5))
   
-- Special thanks to MayIHaveK for zh_CN translation. (MR #1)
+- Special thanks to **MayIHaveK** for zh_CN translation. (MR [#1](https://github.com/AwesomeHippo/ClientDynamicLight/pull/1))
   
-- Special thanks to Thenemex for profiling/testing, which helped the mod to have better performance with almost no FPS impact
+- Special thanks to **Thenemex** for profiling/testing, which helped the mod to have better performance with almost no FPS impact
+
