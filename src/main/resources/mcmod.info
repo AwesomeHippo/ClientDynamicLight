@@ -6,7 +6,7 @@
 		  "version": "3.0",
 		  "mcversion": "${mcversion}",
 		  "url": "https://github.com/AwesomeHippo/ClientDynamicLight",
-		  "updateUrl": "https://www.curseforge.com/minecraft/mc-mods/client-dynamic-light",
+		  "updateUrl": "",
 		  "authorList": ["AwesomeHippo"],
 		  "credits": "Thanks to e3ndr, MayIHaveK and Thenemex.",
 		  "logoFile": "",
