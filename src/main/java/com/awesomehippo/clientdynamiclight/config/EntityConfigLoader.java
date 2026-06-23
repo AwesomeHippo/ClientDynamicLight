@@ -8,11 +8,9 @@ package com.awesomehippo.clientdynamiclight.config;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import com.awesomehippo.clientdynamiclight.ClientDynamicLight;
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader.EntityConfig;
-import com.google.gson.JsonObject;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -23,11 +21,6 @@ import net.minecraft.world.level.Level;
 
 public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
     public static final EntityConfigLoader INSTANCE = new EntityConfigLoader();
-
-    private static final Map<String, String> LEGACY_ENTITY_IDS = Map.of(
-        "LavaSlime", "minecraft:magma_cube",
-        "Creeper", "minecraft:creeper"
-    );
 
     public EntityConfigLoader() {
         super(EntityConfig.class, "config_entities.json");
@@ -65,42 +58,6 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
     @Override
     protected EntityConfig defaultConfig() {
         return new EntityConfig();
-    }
-
-    @Override
-    protected boolean applyMigration(JsonObject raw) {
-        boolean migrated = false;
-
-        if (raw.get("enabled") == null && raw.get("disableEntities") != null) {
-            raw.addProperty("enabled", !raw.get("disableEntities").getAsBoolean());
-            raw.addProperty("enableInNether", !raw.get("disableInNether").getAsBoolean());
-            raw.addProperty("enableInEnd", !raw.get("disableInEnd").getAsBoolean());
-            migrated = true;
-        }
-
-        if (raw.getAsJsonArray("entities") != null) {
-            raw.getAsJsonArray("entities").forEach(element -> {
-                if (!element.isJsonObject()) {
-                    return;
-                }
-
-                JsonObject entry = element.getAsJsonObject();
-                if (!entry.has("id")) {
-                    return;
-                }
-
-                String id = entry.get("id").getAsString();
-                String migratedId = LEGACY_ENTITY_IDS.get(id);
-                if (migratedId != null) {
-                    entry.addProperty("id", migratedId);
-                } else if (!id.contains(":")) {
-                    entry.addProperty("id", "minecraft:" + id.toLowerCase());
-                }
-            });
-            migrated = true;
-        }
-
-        return migrated;
     }
 
     private static boolean isBurning(Entity entity) {

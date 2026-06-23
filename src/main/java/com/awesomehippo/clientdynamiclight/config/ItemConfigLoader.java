@@ -11,7 +11,6 @@ import java.util.List;
 
 import com.awesomehippo.clientdynamiclight.ClientDynamicLight;
 import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader.ItemConfig;
-import com.google.gson.JsonObject;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -70,21 +69,6 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
     @Override
     protected ItemConfig defaultConfig() {
         return new ItemConfig();
-    }
-
-    @Override
-    protected boolean applyMigration(JsonObject raw) {
-        if (raw.get("enabled") != null) {
-            return false;
-        }
-
-        raw.addProperty("enabled", !raw.get("disableItems").getAsBoolean());
-        raw.addProperty("enableDroppedItems", !raw.get("disableDroppedItems").getAsBoolean());
-        raw.addProperty("enableWieldedItems", !raw.get("disableWieldedItems").getAsBoolean());
-        raw.addProperty("enableInNether", !raw.get("disableInNether").getAsBoolean());
-        raw.addProperty("enableInEnd", !raw.get("disableInEnd").getAsBoolean());
-
-        return true;
     }
 
     public static class ItemConfig {

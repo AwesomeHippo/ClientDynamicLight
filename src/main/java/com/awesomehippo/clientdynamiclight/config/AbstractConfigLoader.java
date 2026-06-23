@@ -19,7 +19,6 @@ import java.nio.file.Files;
 import com.awesomehippo.clientdynamiclight.ClientDynamicLight;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
 
 public abstract class AbstractConfigLoader<T> {
     static final Gson GSON = new GsonBuilder()
@@ -40,10 +39,6 @@ public abstract class AbstractConfigLoader<T> {
 
     protected abstract T defaultConfig();
 
-    protected boolean applyMigration(JsonObject raw) {
-        return false;
-    }
-
     public void load() {
         if (!Files.exists(file)) {
             this.config = this.defaultConfig();
@@ -55,13 +50,7 @@ public abstract class AbstractConfigLoader<T> {
             InputStream fis = Files.newInputStream(file);
             Reader r = new InputStreamReader(fis, StandardCharsets.UTF_8)
         ) {
-            JsonObject raw = GSON.fromJson(r, JsonObject.class);
-            if (this.applyMigration(raw)) {
-                ClientDynamicLight.LOGGER.info("Applied migration to config: {}", fileName);
-            }
-
-            this.config = GSON.fromJson(raw, this.configClass);
-            this.save();
+            this.config = GSON.fromJson(r, this.configClass);
         } catch (Exception e) {
             ClientDynamicLight.LOGGER.error("Failed to load config: {}", fileName, e);
             this.config = this.defaultConfig();

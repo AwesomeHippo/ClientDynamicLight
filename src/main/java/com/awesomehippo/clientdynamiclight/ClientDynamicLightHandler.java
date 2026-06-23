@@ -99,21 +99,23 @@ public enum ClientDynamicLightHandler {
 
         Minecraft mc = Minecraft.getInstance();
         if (!dynamicLightEnabled && mc.level != null) {
-            cleanupWorldAddedLights(mc.level);
+            cleanupWorldAddedLights(mc.level, true);
         }
     }
 
     // simple clean up (necessary when disabling the mod/leaving)
-    private void cleanupWorldAddedLights(Level world) {
+    private void cleanupWorldAddedLights(Level world, boolean relight) {
         if (world == null) {
             return;
         }
 
         Map<Long, List<DynamicLightSource>> lightPositions = worldLightPositions.get(world);
         if (lightPositions != null) {
-            for (long packed : lightPositions.keySet()) {
-                final int[] c = unpackPosition(packed);
-                Minecraft.getInstance().execute(() -> requestRelight(world, c[0], c[1], c[2]));
+            if (relight) {
+                for (long packed : lightPositions.keySet()) {
+                    int[] c = unpackPosition(packed);
+                    requestRelight(world, c[0], c[1], c[2]);
+                }
             }
             lightPositions.clear();
         }
@@ -143,7 +145,7 @@ public enum ClientDynamicLightHandler {
         // clean up on world change/unload to avoid potential issues
         if (world != previousWorld) {
             if (previousWorld != null) {
-                cleanupWorldAddedLights(previousWorld);
+                cleanupWorldAddedLights(previousWorld, false);
                 pendingRenderUpdates.clear();
                 executor.getQueue().clear();
             }
@@ -314,7 +316,7 @@ public enum ClientDynamicLightHandler {
 
     private static void requestRelight(Level world, int x, int y, int z) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.levelRenderer == null) {
+        if (mc.levelRenderer == null || mc.level == null || mc.level != world) {
             return;
         }
 
