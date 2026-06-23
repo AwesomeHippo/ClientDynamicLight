@@ -62,15 +62,16 @@ public abstract class AbstractConfigLoader<T> {
             Reader r = new InputStreamReader(fis, StandardCharsets.UTF_8)) {
 
             JsonObject raw = GSON.fromJson(r, JsonObject.class);
-            if (this.applyMigration(raw)) {
+            boolean migrated = this.applyMigration(raw);
+            if (migrated) {
                 ClientDynamicLight.LOGGER.info("Applied migration to config: " + this.fileName);
             }
 
             this.config = GSON.fromJson(raw, this.configClass);
 
-            // Save again. If we applied a migration, this will write the migrated config.
-            // If we added a new default field, this will add it to the config file.
-            this.save();
+            if (migrated) {
+                this.save();
+            }
         } catch (Exception e) {
             ClientDynamicLight.LOGGER.error("Failed to load config: " + this.fileName, e);
             this.config = this.defaultConfig();
