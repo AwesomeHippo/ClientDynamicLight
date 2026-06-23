@@ -2,7 +2,7 @@
 	{
 		  "modid": "clientdynamiclight",
 		  "name": "Client Dynamic Light",
-		  "description": "Lightweight, multithreaded client-side dynamic lighting from held items and nearby entities. Smooth and fully configurable.",
+		  "description": "Lightweight and multithreaded client-side dynamic lighting from held items, armor worn and nearby entities. Smooth and fully configurable.",
 		  "version": "3.0",
 		  "mcversion": "${mcversion}",
 		  "url": "https://github.com/AwesomeHippo/ClientDynamicLight",
