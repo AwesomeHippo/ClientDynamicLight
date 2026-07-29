@@ -7,6 +7,7 @@
 package com.awesomehippo.clientdynamiclight;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -15,7 +16,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -29,7 +29,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.BlockAndTintGetter;
-
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -48,10 +47,12 @@ public enum ClientDynamicLightHandler {
     private static final int MAX_SCAN_RANGE = 64;
     private static final double MAX_DIST = 7.5D;
     private static final double MAX_DIST_SQ = 56.25D;
+    private static final double INV_MAX_DIST = 1.0D / MAX_DIST;
     private static final double POSITION_CHANGE_THRESHOLD = 0.1D;
     private static final double POSITION_CHANGE_THRESHOLD_SQ = POSITION_CHANGE_THRESHOLD * POSITION_CHANGE_THRESHOLD;
-    private static final int NEAR_PLACED_LIGHT_RADIUS = 2;
-    private static final int PACKED_LIGHT_SKIP_THRESHOLD = 11 * 16;
+    private static final int SMALL_SOURCE_COUNT = 8;
+    private static final int ENTITY_SCAN_INTERVAL = 2;
+    private static final int PACKED_FULL_BLOCK = 15 * 16;
 
     private static final ThreadLocal<Boolean> inDynamicLightComputation = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
@@ -59,14 +60,13 @@ public enum ClientDynamicLightHandler {
     private final ConcurrentHashMap<Level, Map<Integer, DynamicLightSource>> worldLightsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Level, Map<Long, List<DynamicLightSource>>> worldLightPositions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Level, Map<Long, Integer>> worldDynamicMaxLevels = new ConcurrentHashMap<>();
-    private final PriorityBlockingQueue<UpdateEntry> pendingRenderUpdates = new PriorityBlockingQueue<>();
+    private final ConcurrentHashMap<Long, Double> pendingSectionDirties = new ConcurrentHashMap<>();
 
     private final ThreadPoolExecutor executor;
 
     private volatile Level lastWorld;
     private volatile Map<Integer, DynamicLightSource> lastLightMap;
     private volatile Map<Long, List<DynamicLightSource>> lastLightPositions;
-    private volatile Map<Long, Integer> lastMaxLevels;
 
     public boolean dynamicLightEnabled = true;
 
@@ -114,8 +114,9 @@ public enum ClientDynamicLightHandler {
             if (relight) {
                 for (long packed : lightPositions.keySet()) {
                     int[] c = unpackPosition(packed);
-                    requestRelight(world, c[0], c[1], c[2]);
+                    queueRenderUpdate(c[0], c[1], c[2]);
                 }
+                applyRenderUpdates(world);
             }
             lightPositions.clear();
         }
@@ -146,7 +147,7 @@ public enum ClientDynamicLightHandler {
         if (world != previousWorld) {
             if (previousWorld != null) {
                 cleanupWorldAddedLights(previousWorld, false);
-                pendingRenderUpdates.clear();
+                pendingSectionDirties.clear();
                 executor.getQueue().clear();
             }
             previousWorld = world;
@@ -174,12 +175,13 @@ public enum ClientDynamicLightHandler {
     /* scan for entities that might emit light within range */
     private void scanEntitiesInRange(Level world, Player player) {
         int scanRange = getScanRange();
+        boolean fullEntityScan = (world.getGameTime() % ENTITY_SCAN_INTERVAL) == 0L;
         AABB range = new AABB(
             player.getX() - scanRange, player.getY() - scanRange, player.getZ() - scanRange,
             player.getX() + scanRange, player.getY() + scanRange, player.getZ() + scanRange
         );
-        List<Entity> entityList = world.getEntitiesOfClass(Entity.class, range);
-        executor.execute(new ScannerRunnable(world, player, entityList, scanRange));
+        List<Entity> entityList = fullEntityScan ? world.getEntitiesOfClass(Entity.class, range) : List.of();
+        executor.execute(new ScannerRunnable(world, player, entityList, scanRange, fullEntityScan));
     }
 
     /* update/remove light sources, and queue updates */
@@ -203,24 +205,7 @@ public enum ClientDynamicLightHandler {
                 source.targetLevel = 0;
             }
 
-            if (source.playerSource && source.level > 0 && source.targetLevel <= 0
-                && isNearPlacedLight(world, source.x, source.y, source.z, source.level)) {
-                source.level = 0;
-                source.targetLevel = 0;
-                source.litAreaStable = true;
-            }
-
-            boolean changed;
-            if (source.litAreaStable) {
-                if (source.level != source.targetLevel) {
-                    source.level = source.targetLevel;
-                    changed = true;
-                } else {
-                    changed = false;
-                }
-            } else {
-                changed = source.tickUpdateLevel();
-            }
+            boolean changed = source.tickUpdateLevel();
             if (changed) {
                 long pos = packPosition(source.x, source.y, source.z);
                 updateMaxAndQueue(world, pos, lightPositions);
@@ -292,103 +277,45 @@ public enum ClientDynamicLightHandler {
             return;
         }
 
-        long pos = packPosition(x, y, z);
+        long sectionKey = SectionPos.asLong(
+            SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(y), SectionPos.blockToSectionCoord(z));
         double dx = x - player.getX();
         double dy = y - player.getY();
         double dz = z - player.getZ();
         double distSq = dx * dx + dy * dy + dz * dz;
-        pendingRenderUpdates.add(new UpdateEntry(pos, distSq));
+        pendingSectionDirties.merge(sectionKey, distSq, Math::min);
     }
 
     private void applyRenderUpdates(Level world) {
-        if (pendingRenderUpdates.isEmpty()) {
+        if (pendingSectionDirties.isEmpty()) {
             return;
         }
 
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.levelRenderer == null || mc.level == null || mc.level != world) {
+            pendingSectionDirties.clear();
+            return;
+        }
+
+        List<Map.Entry<Long, Double>> batch = new ArrayList<>(pendingSectionDirties.entrySet());
+        batch.sort(Comparator.comparingDouble(Map.Entry::getValue));
+
         int count = 0;
-        while (!pendingRenderUpdates.isEmpty() && count < MAX_UPDATES_PER_TICK) {
-            UpdateEntry entry = pendingRenderUpdates.poll();
-            int[] c = unpackPosition(entry.pos);
-            requestRelight(world, c[0], c[1], c[2]);
+        for (Map.Entry<Long, Double> entry : batch) {
+            if (count >= MAX_UPDATES_PER_TICK) {
+                break;
+            }
+            if (pendingSectionDirties.remove(entry.getKey()) == null) {
+                continue;
+            }
+            long key = entry.getKey();
+            mc.levelRenderer.setSectionDirtyWithNeighbors(SectionPos.x(key), SectionPos.y(key), SectionPos.z(key));
             count++;
         }
     }
 
-    private static void requestRelight(Level world, int x, int y, int z) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.levelRenderer == null || mc.level == null || mc.level != world) {
-            return;
-        }
-
-        BlockPos pos = new BlockPos(x, y, z);
-        if (shouldSkipDynamicLight(world, pos, world.getBlockState(pos))) {
-            return;
-        }
-
-        int sectionX = SectionPos.blockToSectionCoord(x);
-        int sectionY = SectionPos.blockToSectionCoord(y);
-        int sectionZ = SectionPos.blockToSectionCoord(z);
-        mc.levelRenderer.setSectionDirtyWithNeighbors(sectionX, sectionY, sectionZ);
-    }
-
     public static boolean shouldSkipDynamicLight(BlockAndTintGetter level, BlockPos pos, BlockState state) {
         return state.getLightEmission(level, pos) > 0;
-    }
-
-    private static boolean hasEmissiveBlockNearby(Level world, int x, int y, int z, int radius) {
-        BlockPos.MutableBlockPos probe = new BlockPos.MutableBlockPos();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dy = -radius; dy <= radius; dy++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    probe.set(x + dx, y + dy, z + dz);
-                    if (world.getBlockState(probe).getLightEmission(world, probe) > 0) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static boolean isNearPlacedLight(Level world, int x, int y, int z, int referenceLevel) {
-        // emissive block probe only - getBrightness goes through our mixin and messes up the check
-        return hasEmissiveBlockNearby(world, x, y, z, NEAR_PLACED_LIGHT_RADIUS);
-    }
-
-    private static void applyLightLevelPolicy(
-        DynamicLightSource source,
-        Level world,
-        int x,
-        int y,
-        int z,
-        int targetLevel,
-        boolean isPlayer
-    ) {
-        if (!isPlayer) {
-            source.litAreaStable = false;
-            return;
-        }
-
-        if (targetLevel <= 0) {
-            if (isNearPlacedLight(world, x, y, z, source.level)) {
-                source.litAreaStable = true;
-                source.level = 0;
-                source.targetLevel = 0;
-            } else {
-                source.litAreaStable = false;
-            }
-            return;
-        }
-
-        if (isNearPlacedLight(world, x, y, z, targetLevel)) {
-            // near placed light, vanilla handles it - don't stack weaker held-item light on top
-            source.litAreaStable = true;
-            source.level = 0;
-            source.targetLevel = 0;
-        } else {
-            source.litAreaStable = false;
-        }
     }
 
     public static int getDynamicLightLevel(BlockPos pos, int vanilla) {
@@ -410,12 +337,7 @@ public enum ClientDynamicLightHandler {
             return vanilla;
         }
 
-        inDynamicLightComputation.set(true);
-        try {
-            return Math.max(vanilla, Mth.ceil(computeDynamicLightLevel(pos)));
-        } finally {
-            inDynamicLightComputation.set(false);
-        }
+        return Math.max(vanilla, Mth.ceil(computeDynamicLightLevel(pos)));
     }
 
     public static int applyDynamicLightToPacked(int packedLight, BlockPos pos) {
@@ -423,7 +345,7 @@ public enum ClientDynamicLightHandler {
             return packedLight;
         }
 
-        if ((packedLight & 255) >= PACKED_LIGHT_SKIP_THRESHOLD) {
+        if ((packedLight & 255) >= PACKED_FULL_BLOCK) {
             return packedLight;
         }
 
@@ -503,7 +425,6 @@ public enum ClientDynamicLightHandler {
                 INSTANCE.lastWorld = level;
                 INSTANCE.lastLightMap = INSTANCE.worldLightsMap.get(level);
                 INSTANCE.lastLightPositions = INSTANCE.worldLightPositions.get(level);
-                INSTANCE.lastMaxLevels = INSTANCE.worldDynamicMaxLevels.get(level);
             }
 
             Map<Integer, DynamicLightSource> lightMap = INSTANCE.lastLightMap;
@@ -511,96 +432,65 @@ public enum ClientDynamicLightHandler {
                 return 0.0D;
             }
 
-            double queryX = pos.getX();
-            double queryY = pos.getY();
-            double queryZ = pos.getZ();
-            double maxLight = 0.0D;
+            double queryX = pos.getX() + 0.5D;
+            double queryY = pos.getY() + 0.5D;
+            double queryZ = pos.getZ() + 0.5D;
 
-            Map<Long, Integer> maxLvls = INSTANCE.lastMaxLevels;
-            if (maxLvls != null) {
-                long qp = packPosition(pos.getX(), pos.getY(), pos.getZ());
-                Integer direct = maxLvls.get(qp);
-                if (direct != null && direct > maxLight) {
-                    maxLight = direct;
-                }
+            if (lightMap.size() <= SMALL_SOURCE_COUNT) {
+                return contributeFromSources(lightMap.values(), queryX, queryY, queryZ);
             }
 
             Map<Long, List<DynamicLightSource>> lightPosMap = INSTANCE.lastLightPositions;
-            boolean usedSpatial = false;
-            if (lightPosMap != null && !lightPosMap.isEmpty()) {
-                usedSpatial = true;
-                int qbx = pos.getX();
-                int qby = pos.getY();
-                int qbz = pos.getZ();
-                for (Map.Entry<Long, List<DynamicLightSource>> e : lightPosMap.entrySet()) {
-                    long sp = e.getKey();
-                    int[] s = unpackPosition(sp);
-                    int dxb = Math.abs(s[0] - qbx);
-                    int dyb = Math.abs(s[1] - qby);
-                    int dzb = Math.abs(s[2] - qbz);
-                    if (dxb > 8 || dyb > 8 || dzb > 8) {
-                        continue;
-                    }
-                    for (DynamicLightSource source : e.getValue()) {
-                        if (source.level <= 0) {
-                            continue;
-                        }
-                        double srcLevel = source.level;
-                        if (srcLevel <= maxLight) {
-                            continue;
-                        }
-                        double dx = queryX - source.renderX;
-                        double dy = queryY - source.renderY;
-                        double dz = queryZ - source.renderZ;
-                        double distSq = dx * dx + dy * dy + dz * dz;
-                        if (distSq > MAX_DIST_SQ) {
-                            continue;
-                        }
-                        double dist = Math.sqrt(distSq);
-                        double falloff = 1.0D - dist / MAX_DIST;
-                        double propagated = falloff * srcLevel;
-                        if (propagated > maxLight) {
-                            maxLight = propagated;
-                            if (maxLight >= 15.0D) {
-                                return 15.0D;
-                            }
-                        }
-                    }
+            if (lightPosMap == null || lightPosMap.isEmpty()) {
+                return contributeFromSources(lightMap.values(), queryX, queryY, queryZ);
+            }
+
+            double maxLight = 0.0D;
+            int qbx = pos.getX();
+            int qby = pos.getY();
+            int qbz = pos.getZ();
+            for (Map.Entry<Long, List<DynamicLightSource>> e : lightPosMap.entrySet()) {
+                int[] s = unpackPosition(e.getKey());
+                if (Math.abs(s[0] - qbx) > 8 || Math.abs(s[1] - qby) > 8 || Math.abs(s[2] - qbz) > 8) {
+                    continue;
+                }
+                maxLight = contributeFromSources(e.getValue(), queryX, queryY, queryZ, maxLight);
+                if (maxLight >= 15.0D) {
+                    return 15.0D;
                 }
             }
 
-            if (!usedSpatial) {
-                for (DynamicLightSource source : lightMap.values()) {
-                    if (source.level <= 0) {
-                        continue;
-                    }
-                    double srcLevel = source.level;
-                    if (srcLevel <= maxLight) {
-                        continue;
-                    }
-                    double dx = queryX - source.renderX;
-                    double dy = queryY - source.renderY;
-                    double dz = queryZ - source.renderZ;
-                    double distSq = dx * dx + dy * dy + dz * dz;
-                    if (distSq > MAX_DIST_SQ) {
-                        continue;
-                    }
-                    double dist = Math.sqrt(distSq);
-                    double falloff = 1.0D - dist / MAX_DIST;
-                    double propagated = falloff * srcLevel;
-                    if (propagated > maxLight) {
-                        maxLight = propagated;
-                        if (maxLight >= 15.0D) {
-                            return 15.0D;
-                        }
-                    }
-                }
-            }
-
-            return Mth.clamp(maxLight, 0.0D, 15.0D);
+            return maxLight;
         } finally {
             inDynamicLightComputation.set(false);
         }
+    }
+
+    private static double contributeFromSources(Iterable<DynamicLightSource> sources, double queryX, double queryY, double queryZ) {
+        return contributeFromSources(sources, queryX, queryY, queryZ, 0.0D);
+    }
+
+    private static double contributeFromSources(Iterable<DynamicLightSource> sources, double queryX, double queryY, double queryZ, double maxLight) {
+        for (DynamicLightSource source : sources) {
+            if (source.level <= 0 || source.level <= maxLight) {
+                continue;
+            }
+            double dx = queryX - source.renderX;
+            double dy = queryY - source.renderY;
+            double dz = queryZ - source.renderZ;
+            double distSq = dx * dx + dy * dy + dz * dz;
+            if (distSq > MAX_DIST_SQ) {
+                continue;
+            }
+            double propagated = (1.0D - Math.sqrt(distSq) * INV_MAX_DIST) * source.level;
+            if (propagated > maxLight) {
+                maxLight = propagated;
+                if (maxLight >= 15.0D) {
+                    return 15.0D;
+                }
+            }
+        }
+        return maxLight;
     }
 
     private static long packPosition(int x, int y, int z) {
@@ -628,7 +518,6 @@ public enum ClientDynamicLightHandler {
         int level;
         int targetLevel;
         long lastSeen;
-        boolean litAreaStable;
         boolean playerSource;
 
         DynamicLightSource(int x, int y, int z, double renderX, double renderY, double renderZ, int level, boolean playerSource) {
@@ -651,34 +540,17 @@ public enum ClientDynamicLightHandler {
             return dx * dx + dy * dy + dz * dz > POSITION_CHANGE_THRESHOLD_SQ;
         }
 
+        // for smoother transition
         public boolean tickUpdateLevel() {
             if (level == targetLevel) {
                 return false;
             }
-
             if (level < targetLevel) {
                 level++;
             } else {
                 level--;
             }
-
             return true;
-        }
-    }
-
-    /* queue entry for light updates (sorted by distance currently) - may move this and DynamicLightSource to another files */
-    private static class UpdateEntry implements Comparable<UpdateEntry> {
-        final long pos;
-        final double distSq;
-
-        UpdateEntry(long pos, double distSq) {
-            this.pos = pos;
-            this.distSq = distSq;
-        }
-
-        @Override
-        public int compareTo(UpdateEntry other) { // closer updates first!
-            return Double.compare(distSq, other.distSq);
         }
     }
 
@@ -687,12 +559,14 @@ public enum ClientDynamicLightHandler {
         private final Player player;
         private final List<Entity> entityList;
         private final int scanRange;
+        private final boolean fullEntityScan;
 
-        ScannerRunnable(Level world, Player player, List<Entity> entityList, int scanRange) {
+        ScannerRunnable(Level world, Player player, List<Entity> entityList, int scanRange, boolean fullEntityScan) {
             this.world = world;
             this.player = player;
             this.entityList = entityList;
             this.scanRange = scanRange;
+            this.fullEntityScan = fullEntityScan;
         }
 
         @Override
@@ -703,21 +577,20 @@ public enum ClientDynamicLightHandler {
             double rangeSq = (double) scanRange * scanRange;
 
             List<Entity> entities = new ArrayList<>();
-
-            for (Entity entity : entityList) {
-                // filter entities within range and skip player
-                if (entity == player) {
-                    continue;
+            if (fullEntityScan) {
+                for (Entity entity : entityList) {
+                    // filter entities within range and skip player
+                    if (entity == player) {
+                        continue;
+                    }
+                    double ex = entity.getX() - px;
+                    double ey = entity.getY() - py;
+                    double ez = entity.getZ() - pz;
+                    if (ex * ex + ey * ey + ez * ez > rangeSq) {
+                        continue;
+                    }
+                    entities.add(entity);
                 }
-
-                double ex = entity.getX() - px;
-                double ey = entity.getY() - py;
-                double ez = entity.getZ() - pz;
-                if (ex * ex + ey * ey + ez * ez > rangeSq) {
-                    continue;
-                }
-
-                entities.add(entity);
             }
 
             // run light updates
@@ -736,35 +609,32 @@ public enum ClientDynamicLightHandler {
                     seenPos.put(player.getId(), new double[] { player.getX(), player.getY(), player.getZ() });
                 }
 
-                // then handle other entities
-                for (Entity entity : entities) {
-                    int lightLevel = EntityLightLevelHelper.getLightLevel(world, entity);
-                    boolean tracked = lightMap.containsKey(entity.getId());
+                if (fullEntityScan) {
+                    // then handle other entities
+                    for (Entity entity : entities) {
+                        int lightLevel = EntityLightLevelHelper.getLightLevel(world, entity);
+                        boolean tracked = lightMap.containsKey(entity.getId());
 
-                    if (lightLevel < 0) { // skip if the helper indicates to skip
-                        if (tracked) {
-                            seenLightLevels.put(entity.getId(), 0);
+                        if (lightLevel < 0) { // skip if the helper indicates to skip
+                            if (tracked) {
+                                seenLightLevels.put(entity.getId(), 0);
+                                seenPos.put(entity.getId(), new double[] { entity.getX(), entity.getY(), entity.getZ() });
+                            }
+                            continue;
+                        }
+
+                        if (lightLevel > 0 || tracked) {
+                            seenLightLevels.put(entity.getId(), lightLevel);
                             seenPos.put(entity.getId(), new double[] { entity.getX(), entity.getY(), entity.getZ() });
                         }
-                        continue;
                     }
 
-                    if (lightLevel > 0 || tracked) {
-                        seenLightLevels.put(entity.getId(), lightLevel);
-                        seenPos.put(entity.getId(), new double[] { entity.getX(), entity.getY(), entity.getZ() });
-                    }
-                }
-
-                Set<Integer> currentKeys = new HashSet<>(lightMap.keySet());
-                for (Integer id : currentKeys) {
-                    if (!seenLightLevels.containsKey(id)) {
-                        DynamicLightSource source = lightMap.get(id);
-                        if (source != null) {
-                            source.targetLevel = 0;
-                            if (source.playerSource) {
-                                applyLightLevelPolicy(source, world, source.x, source.y, source.z, 0, true);
-                            } else {
-                                source.litAreaStable = false;
+                    Set<Integer> currentKeys = new HashSet<>(lightMap.keySet());
+                    for (Integer id : currentKeys) {
+                        if (!seenLightLevels.containsKey(id)) {
+                            DynamicLightSource source = lightMap.get(id);
+                            if (source != null) {
+                                source.targetLevel = 0;
                             }
                         }
                     }
@@ -782,31 +652,31 @@ public enum ClientDynamicLightHandler {
                 // transfer check for sources that need to increase light level
                 //TODO: this may be optimizable
                 for (Map.Entry<Integer, Integer> entry : seenLightLevels.entrySet()) {
-                    int id = entry.getKey();
-                    DynamicLightSource source = lightMap.get(id);
-                    if (source != null && source.level < source.targetLevel) {
-                        long pos = packPosition(source.x, source.y, source.z);
-                        int[] coord = unpackPosition(pos);
-                        int maxFading = 0;
-                        for (int dx = -1; dx <= 1; dx++) {
-                            for (int dy = -1; dy <= 1; dy++) {
-                                for (int dz = -1; dz <= 1; dz++) {
-                                    long neighborPos = packPosition(coord[0] + dx, coord[1] + dy, coord[2] + dz);
-                                    List<DynamicLightSource> list = lightPositions.get(neighborPos);
-                                    if (list != null) {
-                                        for (DynamicLightSource neighbor : list) {
-                                            if (neighbor.targetLevel <= 0 && neighbor.level > 0) {
-                                                maxFading = Math.max(maxFading, neighbor.level);
-                                            }
-                                        }
+                    DynamicLightSource source = lightMap.get(entry.getKey());
+                    if (source == null || source.level >= source.targetLevel) {
+                        continue;
+                    }
+                    long pos = packPosition(source.x, source.y, source.z);
+                    int[] coord = unpackPosition(pos);
+                    int maxFading = 0;
+                    for (int dx = -1; dx <= 1; dx++) {
+                        for (int dy = -1; dy <= 1; dy++) {
+                            for (int dz = -1; dz <= 1; dz++) {
+                                List<DynamicLightSource> list = lightPositions.get(packPosition(coord[0] + dx, coord[1] + dy, coord[2] + dz));
+                                if (list == null) {
+                                    continue;
+                                }
+                                for (DynamicLightSource neighbor : list) {
+                                    if (neighbor.targetLevel <= 0 && neighbor.level > 0) {
+                                        maxFading = Math.max(maxFading, neighbor.level);
                                     }
                                 }
                             }
                         }
-                        if (maxFading > source.level) {
-                            source.level = maxFading;
-                            INSTANCE.updateMaxAndQueue(world, pos, lightPositions);
-                        }
+                    }
+                    if (maxFading > source.level) {
+                        source.level = maxFading;
+                        INSTANCE.updateMaxAndQueue(world, pos, lightPositions);
                     }
                 }
             });
@@ -893,24 +763,22 @@ public enum ClientDynamicLightHandler {
             return;
         }
 
+        int targetted = Math.max(level, 0);
+
         if (source == null) {
             source = new DynamicLightSource(bx, by, bz, renderX, renderY, renderZ, 0, isPlayer);
-            source.targetLevel = level;
-            applyLightLevelPolicy(source, world, bx, by, bz, level, isPlayer);
+            source.targetLevel = targetted;
             lightMap.put(entityId, source);
 
             List<DynamicLightSource> list = lightPositions.computeIfAbsent(newPos, k -> new ArrayList<>());
             list.add(source);
 
             INSTANCE.updateMaxAndQueue(world, newPos, lightPositions);
-            if (level > 0) {
-                INSTANCE.queueRenderUpdate(bx, by, bz);
-            }
         } else {
             long oldPos = packPosition(source.x, source.y, source.z);
             boolean movedBlock = oldPos != newPos;
             boolean movedRender = source.hasMovedSignificantly(renderX, renderY, renderZ);
-            boolean levelChanged = source.targetLevel != level;
+            boolean targetChanged = source.targetLevel != targetted;
 
             if (movedBlock) { // entity moved, update position
                 List<DynamicLightSource> oldList = lightPositions.get(oldPos);
@@ -933,12 +801,11 @@ public enum ClientDynamicLightHandler {
             source.renderY = renderY;
             source.renderZ = renderZ;
 
-            if (levelChanged) {
-                source.targetLevel = level; // then update target light level
-                applyLightLevelPolicy(source, world, source.x, source.y, source.z, level, isPlayer);
+            if (targetChanged) {
+                source.targetLevel = targetted;
             }
 
-            if (movedBlock || movedRender || levelChanged) {
+            if (movedBlock || movedRender) {
                 INSTANCE.queueRenderUpdate(source.x, source.y, source.z);
             }
         }

@@ -13,6 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.awesomehippo.clientdynamiclight.ClientDynamicLightHandler;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockAndTintGetter;
@@ -33,6 +34,11 @@ public class LevelRendererMixin {
         CallbackInfoReturnable<Integer> cir
     ) {
         if (ClientDynamicLightHandler.shouldSkipDynamicLight(level, pos, state)) {
+            return;
+        }
+
+        // skip solid blocks under AO (avoid strange shadow issue around edges)
+        if (Minecraft.useAmbientOcclusion() && state.isSolidRender(level, pos)) {
             return;
         }
 
