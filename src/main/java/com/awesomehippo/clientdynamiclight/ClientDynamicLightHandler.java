@@ -20,27 +20,31 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import org.joml.Vector3f;
 
 @OnlyIn(Dist.CLIENT)
 public enum ClientDynamicLightHandler {
     INSTANCE;
 
+    //TODO: tweak these or add it to config.
     private static final int MAX_UPDATES_PER_TICK = 16; // 16 should definitely avoid lag spike
     private static final int LIGHT_CHANGE_THRESHOLD = 1;
     private static final int CLEANUP_TIMEOUT = 20;
@@ -48,25 +52,32 @@ public enum ClientDynamicLightHandler {
     private static final double MAX_DIST = 7.5D;
     private static final double MAX_DIST_SQ = 56.25D;
     private static final double INV_MAX_DIST = 1.0D / MAX_DIST;
-    private static final double POSITION_CHANGE_THRESHOLD = 0.1D;
+    private static final double POSITION_CHANGE_THRESHOLD = 0.25D;
     private static final double POSITION_CHANGE_THRESHOLD_SQ = POSITION_CHANGE_THRESHOLD * POSITION_CHANGE_THRESHOLD;
     private static final int SMALL_SOURCE_COUNT = 8;
     private static final int ENTITY_SCAN_INTERVAL = 2;
     private static final int PACKED_FULL_BLOCK = 15 * 16;
+    private static final int CELL_SHIFT = 3;
+    private static final int WATER_OFFSET_MAX = 6;
+    private static final double VIEW_RANGE_SECTION_MARGIN = 16.0D;
+    private static final double BEHIND_CAMERA_SLACK = 1.0D;
 
     private static final ThreadLocal<Boolean> inDynamicLightComputation = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     // may replace these maps with an unified WorldLightData class
     private final ConcurrentHashMap<Level, Map<Integer, DynamicLightSource>> worldLightsMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Level, Map<Long, List<DynamicLightSource>>> worldLightPositions = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Level, Map<Long, List<DynamicLightSource>>> worldLightCells = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Level, Map<Long, Integer>> worldDynamicMaxLevels = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Long, Double> pendingSectionDirties = new ConcurrentHashMap<>();
+    private final Map<Long, Double> pendingSectionDirties = new HashMap<>();
 
     private final ThreadPoolExecutor executor;
+    private final BlockPos.MutableBlockPos scratchPos = new BlockPos.MutableBlockPos();
 
     private volatile Level lastWorld;
     private volatile Map<Integer, DynamicLightSource> lastLightMap;
     private volatile Map<Long, List<DynamicLightSource>> lastLightPositions;
+    private volatile Map<Long, List<DynamicLightSource>> lastLightCells;
 
     public boolean dynamicLightEnabled = true;
 
@@ -112,13 +123,19 @@ public enum ClientDynamicLightHandler {
         Map<Long, List<DynamicLightSource>> lightPositions = worldLightPositions.get(world);
         if (lightPositions != null) {
             if (relight) {
-                for (long packed : lightPositions.keySet()) {
-                    int[] c = unpackPosition(packed);
-                    queueRenderUpdate(c[0], c[1], c[2]);
+                for (List<DynamicLightSource> sources : lightPositions.values()) {
+                    for (DynamicLightSource source : sources) {
+                        queueLightArea(source.renderX, source.renderY, source.renderZ);
+                    }
                 }
-                applyRenderUpdates(world);
+                flushRenderUpdates(world, true);
             }
             lightPositions.clear();
+        }
+
+        Map<Long, List<DynamicLightSource>> lightCells = worldLightCells.get(world);
+        if (lightCells != null) {
+            lightCells.clear();
         }
 
         Map<Integer, DynamicLightSource> lightMap = worldLightsMap.get(world);
@@ -135,7 +152,7 @@ public enum ClientDynamicLightHandler {
     // main part running every tick to update lights
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
-        if (!dynamicLightEnabled || event.phase != TickEvent.Phase.END) {
+        if (event.phase != TickEvent.Phase.END) {
             return;
         }
 
@@ -154,22 +171,93 @@ public enum ClientDynamicLightHandler {
             lastWorld = null;
         }
 
+        if (!dynamicLightEnabled) {
+            if (world != null && !pendingSectionDirties.isEmpty()) {
+                flushRenderUpdates(world, true);
+            }
+            return;
+        }
+
         if (world == null || player == null || mc.screen != null) { // avoid running checks on menus
             return;
         }
 
+        prunePendingOutsideView(world);
         scanEntitiesInRange(world, player);
         updateLightPositions(world);
-        applyRenderUpdates(world);
+        applyRenderUpdates(world, false);
     }
 
     private int getScanRange() {
+        return (int) Math.min(getViewRangeBlocks(), MAX_SCAN_RANGE);
+    }
+
+    private double getViewRangeBlocks() {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.options == null) {
-            return MAX_SCAN_RANGE;
+        int renderChunks = 12;
+        if (mc.options != null) {
+            renderChunks = mc.options.renderDistance().get();
+        }
+        return renderChunks * 16.0D + VIEW_RANGE_SECTION_MARGIN;
+    }
+
+    private double getViewRangeSq() {
+        double range = getViewRangeBlocks();
+        return range * range;
+    }
+
+    private void prunePendingOutsideView(Level world) {
+        if (pendingSectionDirties.isEmpty()) {
+            return;
         }
 
-        return Math.min(mc.options.renderDistance().get() * 16, MAX_SCAN_RANGE);
+        Minecraft mc = Minecraft.getInstance();
+        Camera camera = mc.gameRenderer.getMainCamera();
+        Vec3 camPos = camera.getPosition();
+        double rangeSq = getViewRangeSq();
+        double camX = camPos.x;
+        double camY = camPos.y;
+        double camZ = camPos.z;
+
+        Iterator<Long> it = pendingSectionDirties.keySet().iterator();
+        while (it.hasNext()) {
+            long key = it.next();
+            int sx = SectionPos.x(key);
+            int sy = SectionPos.y(key);
+            int sz = SectionPos.z(key);
+            if (!isSectionInViewRange(sx, sy, sz, camX, camY, camZ, rangeSq)) {
+                it.remove();
+            }
+        }
+    }
+
+    private static boolean isSectionInViewRange(int sx, int sy, int sz, double camX, double camY, double camZ, double rangeSq) {
+        double cx = SectionPos.sectionToBlockCoord(sx, 8);
+        double cy = SectionPos.sectionToBlockCoord(sy, 8);
+        double cz = SectionPos.sectionToBlockCoord(sz, 8);
+        double dx = cx - camX;
+        double dy = cy - camY;
+        double dz = cz - camZ;
+        return dx * dx + dy * dy + dz * dz <= rangeSq;
+    }
+
+    private static boolean isSectionVisibleToCamera(int sx, int sy, int sz, double camX, double camY, double camZ, Vector3f look) {
+        double minX = SectionPos.sectionToBlockCoord(sx);
+        double minY = SectionPos.sectionToBlockCoord(sy);
+        double minZ = SectionPos.sectionToBlockCoord(sz);
+        double maxX = minX + 16.0D;
+        double maxY = minY + 16.0D;
+        double maxZ = minZ + 16.0D;
+
+        float lx = look.x();
+        float ly = look.y();
+        float lz = look.z();
+
+        double x = lx >= 0.0F ? maxX : minX;
+        double y = ly >= 0.0F ? maxY : minY;
+        double z = lz >= 0.0F ? maxZ : minZ;
+        double maxForward = (x - camX) * lx + (y - camY) * ly + (z - camZ) * lz;
+        return maxForward >= -BEHIND_CAMERA_SLACK;
     }
 
     /* scan for entities that might emit light within range */
@@ -194,6 +282,7 @@ public enum ClientDynamicLightHandler {
         long currentTime = world.getGameTime();
         Iterator<Map.Entry<Integer, DynamicLightSource>> it = lightMap.entrySet().iterator();
         Map<Long, List<DynamicLightSource>> lightPositions = worldLightPositions.get(world);
+        Map<Long, List<DynamicLightSource>> lightCells = worldLightCells.get(world);
 
         while (it.hasNext()) {
             Map.Entry<Integer, DynamicLightSource> entry = it.next();
@@ -214,16 +303,7 @@ public enum ClientDynamicLightHandler {
             if (source.level == 0 && source.targetLevel == 0) {
                 // only now the level is at 0 so we can clean up
                 long pos = packPosition(source.x, source.y, source.z);
-
-                if (lightPositions != null) {
-                    List<DynamicLightSource> list = lightPositions.get(pos);
-                    if (list != null) {
-                        list.remove(source);
-                        if (list.isEmpty()) {
-                            lightPositions.remove(pos);
-                        }
-                    }
-                }
+                removeSourceFromIndexes(source, pos, lightPositions, lightCells);
                 updateMaxAndQueue(world, pos, lightPositions);
                 it.remove();
             } else if ((entity == null || !entity.isAlive()) && currentTime - source.lastSeen > CLEANUP_TIMEOUT) {
@@ -231,15 +311,7 @@ public enum ClientDynamicLightHandler {
                 source.targetLevel = 0;
                 source.level = 0;
                 long pos = packPosition(source.x, source.y, source.z);
-                if (lightPositions != null) {
-                    List<DynamicLightSource> list = lightPositions.get(pos);
-                    if (list != null) {
-                        list.remove(source);
-                        if (list.isEmpty()) {
-                            lightPositions.remove(pos);
-                        }
-                    }
-                }
+                removeSourceFromIndexes(source, pos, lightPositions, lightCells);
                 updateMaxAndQueue(world, pos, lightPositions);
                 it.remove();
             }
@@ -261,8 +333,10 @@ public enum ClientDynamicLightHandler {
 
         // only queue if the light level change is significant (may adjust LIGHT_CHANGE_THRESHOLD)
         if (Math.abs(newMax - oldMax) >= LIGHT_CHANGE_THRESHOLD) {
-            int[] c = unpackPosition(pos);
-            queueRenderUpdate(c[0], c[1], c[2]);
+            int x = unpackX(pos);
+            int y = unpackY(pos);
+            int z = unpackZ(pos);
+            queueLightArea(x + 0.5D, y + 0.5D, z + 0.5D);
             if (newMax == 0) {
                 maxLevels.remove(pos);
             } else {
@@ -271,22 +345,48 @@ public enum ClientDynamicLightHandler {
         }
     }
 
-    private void queueRenderUpdate(int x, int y, int z) {
-        Player player = Minecraft.getInstance().player;
+    private void queueLightArea(double x, double y, double z) {
+        Minecraft mc = Minecraft.getInstance();
+        Player player = mc.player;
         if (player == null) {
             return;
         }
 
-        long sectionKey = SectionPos.asLong(
-            SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(y), SectionPos.blockToSectionCoord(z));
-        double dx = x - player.getX();
-        double dy = y - player.getY();
-        double dz = z - player.getZ();
-        double distSq = dx * dx + dy * dy + dz * dz;
-        pendingSectionDirties.merge(sectionKey, distSq, Math::min);
+        Camera camera = mc.gameRenderer.getMainCamera();
+        Vec3 camPos = camera.getPosition();
+        double camX = camPos.x;
+        double camY = camPos.y;
+        double camZ = camPos.z;
+        double rangeSq = getViewRangeSq();
+
+        int minSx = SectionPos.blockToSectionCoord(Mth.floor(x - MAX_DIST));
+        int maxSx = SectionPos.blockToSectionCoord(Mth.floor(x + MAX_DIST));
+        int minSy = SectionPos.blockToSectionCoord(Mth.floor(y - MAX_DIST));
+        int maxSy = SectionPos.blockToSectionCoord(Mth.floor(y + MAX_DIST));
+        int minSz = SectionPos.blockToSectionCoord(Mth.floor(z - MAX_DIST));
+        int maxSz = SectionPos.blockToSectionCoord(Mth.floor(z + MAX_DIST));
+
+        for (int sx = minSx; sx <= maxSx; sx++) {
+            for (int sy = minSy; sy <= maxSy; sy++) {
+                for (int sz = minSz; sz <= maxSz; sz++) {
+                    if (!isSectionInViewRange(sx, sy, sz, camX, camY, camZ, rangeSq)) {
+                        continue;
+                    }
+                    double cx = SectionPos.sectionToBlockCoord(sx, 8);
+                    double cy = SectionPos.sectionToBlockCoord(sy, 8);
+                    double cz = SectionPos.sectionToBlockCoord(sz, 8);
+                    double dx = cx - camX;
+                    double dy = cy - camY;
+                    double dz = cz - camZ;
+                    double distSq = dx * dx + dy * dy + dz * dz;
+                    long sectionKey = SectionPos.asLong(sx, sy, sz);
+                    pendingSectionDirties.merge(sectionKey, distSq, Math::min);
+                }
+            }
+        }
     }
 
-    private void applyRenderUpdates(Level world) {
+    private void applyRenderUpdates(Level world, boolean force) {
         if (pendingSectionDirties.isEmpty()) {
             return;
         }
@@ -297,6 +397,14 @@ public enum ClientDynamicLightHandler {
             return;
         }
 
+        Camera camera = mc.gameRenderer.getMainCamera();
+        Vec3 camPos = camera.getPosition();
+        double camX = camPos.x;
+        double camY = camPos.y;
+        double camZ = camPos.z;
+        Vector3f look = camera.getLookVector();
+        double rangeSq = getViewRangeSq();
+
         List<Map.Entry<Long, Double>> batch = new ArrayList<>(pendingSectionDirties.entrySet());
         batch.sort(Comparator.comparingDouble(Map.Entry::getValue));
 
@@ -305,39 +413,46 @@ public enum ClientDynamicLightHandler {
             if (count >= MAX_UPDATES_PER_TICK) {
                 break;
             }
-            if (pendingSectionDirties.remove(entry.getKey()) == null) {
+
+            long key = entry.getKey();
+            int sx = SectionPos.x(key);
+            int sy = SectionPos.y(key);
+            int sz = SectionPos.z(key);
+
+            if (!force && !isSectionInViewRange(sx, sy, sz, camX, camY, camZ, rangeSq)) {
+                pendingSectionDirties.remove(key);
                 continue;
             }
-            long key = entry.getKey();
-            mc.levelRenderer.setSectionDirtyWithNeighbors(SectionPos.x(key), SectionPos.y(key), SectionPos.z(key));
+
+            if (!force && !isSectionVisibleToCamera(sx, sy, sz, camX, camY, camZ, look)) {
+                continue;
+            }
+
+            if (pendingSectionDirties.remove(key) == null) {
+                continue;
+            }
+
+            mc.levelRenderer.setSectionDirty(sx, sy, sz);
             count++;
+        }
+    }
+
+    private void flushRenderUpdates(Level world, boolean force) {
+        while (!pendingSectionDirties.isEmpty()) {
+            int before = pendingSectionDirties.size();
+            applyRenderUpdates(world, force);
+            if (!force) {
+                break;
+            }
+            if (pendingSectionDirties.size() >= before) {
+                pendingSectionDirties.clear();
+                break;
+            }
         }
     }
 
     public static boolean shouldSkipDynamicLight(BlockAndTintGetter level, BlockPos pos, BlockState state) {
         return state.getLightEmission(level, pos) > 0;
-    }
-
-    public static int getDynamicLightLevel(BlockPos pos, int vanilla) {
-        if (!INSTANCE.dynamicLightEnabled) {
-            return vanilla;
-        }
-
-        if (inDynamicLightComputation.get()) {
-            return vanilla;
-        }
-
-        Minecraft mc = Minecraft.getInstance();
-        Level level = mc.level;
-        if (level != null && shouldSkipDynamicLight(level, pos, level.getBlockState(pos))) {
-            return vanilla;
-        }
-
-        if (vanilla >= 15) {
-            return vanilla;
-        }
-
-        return Math.max(vanilla, Mth.ceil(computeDynamicLightLevel(pos)));
     }
 
     public static int applyDynamicLightToPacked(int packedLight, BlockPos pos) {
@@ -349,8 +464,11 @@ public enum ClientDynamicLightHandler {
             return packedLight;
         }
 
-        double dyn = inDynamicLightComputation.get() ? 0.0D : computeDynamicLightLevel(pos);
-        return mergeDynamicLight(dyn, packedLight);
+        if (inDynamicLightComputation.get()) {
+            return packedLight;
+        }
+
+        return mergeDynamicLight(computeDynamicLightLevelRaw(pos), packedLight);
     }
 
     public static int applyDynamicLightToPackedForEntity(Entity entity, int packedLight) {
@@ -358,7 +476,11 @@ public enum ClientDynamicLightHandler {
             return packedLight;
         }
 
-        double light = inDynamicLightComputation.get() ? 0.0D : computeDynamicLightLevel(entity.blockPosition());
+        if (inDynamicLightComputation.get()) {
+            return packedLight;
+        }
+
+        double light = computeDynamicLightLevelRaw(entity.blockPosition());
         Player localPlayer = Minecraft.getInstance().player;
         if (entity == localPlayer) {
             DynamicLightSource source = getPlayerLightSource();
@@ -419,12 +541,23 @@ public enum ClientDynamicLightHandler {
             return 0.0D;
         }
 
+        return computeDynamicLightLevelRaw(pos);
+    }
+
+    private static double computeDynamicLightLevelRaw(BlockPos pos) {
+        Minecraft mc = Minecraft.getInstance();
+        Level level = mc.level;
+        if (level == null) {
+            return 0.0D;
+        }
+
         inDynamicLightComputation.set(true);
         try {
-            if (!level.equals(INSTANCE.lastWorld) || INSTANCE.lastLightMap == null) {
+            if (level != INSTANCE.lastWorld || INSTANCE.lastLightMap == null) {
                 INSTANCE.lastWorld = level;
                 INSTANCE.lastLightMap = INSTANCE.worldLightsMap.get(level);
                 INSTANCE.lastLightPositions = INSTANCE.worldLightPositions.get(level);
+                INSTANCE.lastLightCells = INSTANCE.worldLightCells.get(level);
             }
 
             Map<Integer, DynamicLightSource> lightMap = INSTANCE.lastLightMap;
@@ -440,6 +573,11 @@ public enum ClientDynamicLightHandler {
                 return contributeFromSources(lightMap.values(), queryX, queryY, queryZ);
             }
 
+            Map<Long, List<DynamicLightSource>> lightCells = INSTANCE.lastLightCells;
+            if (lightCells != null && !lightCells.isEmpty()) {
+                return contributeFromCells(lightCells, pos.getX(), pos.getY(), pos.getZ(), queryX, queryY, queryZ);
+            }
+
             Map<Long, List<DynamicLightSource>> lightPosMap = INSTANCE.lastLightPositions;
             if (lightPosMap == null || lightPosMap.isEmpty()) {
                 return contributeFromSources(lightMap.values(), queryX, queryY, queryZ);
@@ -450,8 +588,11 @@ public enum ClientDynamicLightHandler {
             int qby = pos.getY();
             int qbz = pos.getZ();
             for (Map.Entry<Long, List<DynamicLightSource>> e : lightPosMap.entrySet()) {
-                int[] s = unpackPosition(e.getKey());
-                if (Math.abs(s[0] - qbx) > 8 || Math.abs(s[1] - qby) > 8 || Math.abs(s[2] - qbz) > 8) {
+                long packed = e.getKey();
+                int sx = unpackX(packed);
+                int sy = unpackY(packed);
+                int sz = unpackZ(packed);
+                if (Math.abs(sx - qbx) > 8 || Math.abs(sy - qby) > 8 || Math.abs(sz - qbz) > 8) {
                     continue;
                 }
                 maxLight = contributeFromSources(e.getValue(), queryX, queryY, queryZ, maxLight);
@@ -464,6 +605,38 @@ public enum ClientDynamicLightHandler {
         } finally {
             inDynamicLightComputation.set(false);
         }
+    }
+
+    private static double contributeFromCells(
+        Map<Long, List<DynamicLightSource>> lightCells,
+        int qbx,
+        int qby,
+        int qbz,
+        double queryX,
+        double queryY,
+        double queryZ
+    ) {
+        int cellX = qbx >> CELL_SHIFT;
+        int cellY = qby >> CELL_SHIFT;
+        int cellZ = qbz >> CELL_SHIFT;
+        double maxLight = 0.0D;
+
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    List<DynamicLightSource> list = lightCells.get(packPosition(cellX + dx, cellY + dy, cellZ + dz));
+                    if (list == null || list.isEmpty()) {
+                        continue;
+                    }
+                    maxLight = contributeFromSources(list, queryX, queryY, queryZ, maxLight);
+                    if (maxLight >= 15.0D) {
+                        return 15.0D;
+                    }
+                }
+            }
+        }
+
+        return maxLight;
     }
 
     private static double contributeFromSources(Iterable<DynamicLightSource> sources, double queryX, double queryY, double queryZ) {
@@ -497,18 +670,62 @@ public enum ClientDynamicLightHandler {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) (y & 0xFFF) << 26) | (long) (z & 0x3FFFFFF);
     }
 
-    private static int[] unpackPosition(long packed) {
+    // better w/ separate X/Y/Z unpacks so we don't allocate int[] every time actually
+    private static int unpackX(long packed) {
         int x = (int) (packed >> 38);
-        int y = (int) ((packed >> 26) & 0xFFF);
-        int z = (int) (packed & 0x3FFFFFF);
         if ((x & 0x2000000) != 0) {
             x |= ~0x3FFFFFF;
         }
+        return x;
+    }
+
+    private static int unpackY(long packed) {
+        int y = (int) ((packed >> 26) & 0xFFF);
+        if ((y & 0x800) != 0) {
+            y |= ~0xFFF;
+        }
+        return y;
+    }
+
+    private static int unpackZ(long packed) {
+        int z = (int) (packed & 0x3FFFFFF);
         if ((z & 0x2000000) != 0) {
             z |= ~0x3FFFFFF;
         }
+        return z;
+    }
 
-        return new int[] { x, y, z };
+    private static long packCell(int blockX, int blockY, int blockZ) {
+        return packPosition(blockX >> CELL_SHIFT, blockY >> CELL_SHIFT, blockZ >> CELL_SHIFT);
+    }
+
+    private static void addSourceToIndexes(DynamicLightSource source, long pos, Map<Long, List<DynamicLightSource>> lightPositions, Map<Long, List<DynamicLightSource>> lightCells) {
+        lightPositions.computeIfAbsent(pos, k -> new ArrayList<>(2)).add(source);
+        long cell = packCell(source.x, source.y, source.z);
+        lightCells.computeIfAbsent(cell, k -> new ArrayList<>(2)).add(source);
+    }
+
+    private static void removeSourceFromIndexes(DynamicLightSource source, long pos, Map<Long, List<DynamicLightSource>> lightPositions, Map<Long, List<DynamicLightSource>> lightCells) {
+        if (lightPositions != null) {
+            List<DynamicLightSource> list = lightPositions.get(pos);
+            if (list != null) {
+                list.remove(source);
+                if (list.isEmpty()) {
+                    lightPositions.remove(pos);
+                }
+            }
+        }
+
+        if (lightCells != null) {
+            long cell = packCell(source.x, source.y, source.z);
+            List<DynamicLightSource> cellList = lightCells.get(cell);
+            if (cellList != null) {
+                cellList.remove(source);
+                if (cellList.isEmpty()) {
+                    lightCells.remove(cell);
+                }
+            }
+        }
     }
 
     // holds the info for a light source
@@ -597,6 +814,7 @@ public enum ClientDynamicLightHandler {
             Minecraft.getInstance().execute(() -> {
                 Map<Integer, DynamicLightSource> lightMap = INSTANCE.worldLightsMap.computeIfAbsent(world, k -> new ConcurrentHashMap<>());
                 Map<Long, List<DynamicLightSource>> lightPositions = INSTANCE.worldLightPositions.computeIfAbsent(world, k -> new ConcurrentHashMap<>());
+                Map<Long, List<DynamicLightSource>> lightCells = INSTANCE.worldLightCells.computeIfAbsent(world, k -> new ConcurrentHashMap<>());
 
                 Map<Integer, Integer> seenLightLevels = new HashMap<>();
                 Map<Integer, double[]> seenPos = new HashMap<>();
@@ -646,7 +864,7 @@ public enum ClientDynamicLightHandler {
                     int level = entry.getValue();
                     double[] position = seenPos.get(id);
                     Entity entity = id == player.getId() ? player : world.getEntity(id);
-                    updateLightSource(world, id, entity, position[0], position[1], position[2], level, lightMap, lightPositions);
+                    updateLightSource(world, id, entity, position[0], position[1], position[2], level, lightMap, lightPositions, lightCells);
                 }
 
                 // transfer check for sources that need to increase light level
@@ -656,13 +874,11 @@ public enum ClientDynamicLightHandler {
                     if (source == null || source.level >= source.targetLevel) {
                         continue;
                     }
-                    long pos = packPosition(source.x, source.y, source.z);
-                    int[] coord = unpackPosition(pos);
                     int maxFading = 0;
                     for (int dx = -1; dx <= 1; dx++) {
                         for (int dy = -1; dy <= 1; dy++) {
                             for (int dz = -1; dz <= 1; dz++) {
-                                List<DynamicLightSource> list = lightPositions.get(packPosition(coord[0] + dx, coord[1] + dy, coord[2] + dz));
+                                List<DynamicLightSource> list = lightPositions.get(packPosition(source.x + dx, source.y + dy, source.z + dz));
                                 if (list == null) {
                                     continue;
                                 }
@@ -676,6 +892,7 @@ public enum ClientDynamicLightHandler {
                     }
                     if (maxFading > source.level) {
                         source.level = maxFading;
+                        long pos = packPosition(source.x, source.y, source.z);
                         INSTANCE.updateMaxAndQueue(world, pos, lightPositions);
                     }
                 }
@@ -684,41 +901,45 @@ public enum ClientDynamicLightHandler {
     }
 
     // special case to prevent some strange glitches in water
-    private static int[] findSpecialOffsetPosition(Level world, int bx, int by, int bz) {
-        BlockState currentState = world.getBlockState(new BlockPos(bx, by, bz));
-        int maxOffsetDistance = 6;
-
+    private static boolean resolveLightBlock(Level world, BlockPos.MutableBlockPos pos) {
+        BlockState currentState = world.getBlockState(pos);
         if (!currentState.getFluidState().is(FluidTags.WATER)) {
-            return new int[] { bx, by, bz }; // (not water so it's fine)
+            return true; // (not water so it's fine)
         }
 
+        int bx = pos.getX();
+        int by = pos.getY();
+        int bz = pos.getZ();
+
         // search for solid/non-water block below first
-        for (int dy = 1; dy <= maxOffsetDistance; dy++) {
+        for (int dy = 1; dy <= WATER_OFFSET_MAX; dy++) {
             int offsetY = by - dy;
-            if (offsetY < 0) {
+            if (offsetY < world.getMinBuildHeight()) {
                 break;
             }
 
-            BlockState state = world.getBlockState(new BlockPos(bx, offsetY, bz));
+            pos.set(bx, offsetY, bz);
+            BlockState state = world.getBlockState(pos);
             if (!state.getFluidState().is(FluidTags.WATER) && !state.isAir()) { // (solid blocks)
-                return new int[] { bx, offsetY, bz };
+                return true;
             }
         }
 
         // air below, if there is?
-        for (int dy = 1; dy <= maxOffsetDistance; dy++) {
+        for (int dy = 1; dy <= WATER_OFFSET_MAX; dy++) {
             int offsetY = by - dy;
-            if (offsetY < 0) {
+            if (offsetY < world.getMinBuildHeight()) {
                 break;
             }
 
-            BlockState state = world.getBlockState(new BlockPos(bx, offsetY, bz));
-            if (state.isAir()) {
-                return new int[] { bx, offsetY, bz };
+            pos.set(bx, offsetY, bz);
+            if (world.getBlockState(pos).isAir()) {
+                return true;
             }
         }
 
-        return null;
+        pos.set(bx, by, bz);
+        return false;
     }
 
     /* update/create light source for an entity */
@@ -731,20 +952,24 @@ public enum ClientDynamicLightHandler {
         double z,
         int level,
         Map<Integer, DynamicLightSource> lightMap,
-        Map<Long, List<DynamicLightSource>> lightPositions
+        Map<Long, List<DynamicLightSource>> lightPositions,
+        Map<Long, List<DynamicLightSource>> lightCells
     ) {
         int bx = Mth.floor(x);
         int by = Mth.floor(y);
         int bz = Mth.floor(z);
 
         // special case if in water to avoid some kind of glitch
-        int[] offsetPos = findSpecialOffsetPosition(world, bx, by, bz);
-        if (offsetPos == null) {
+        BlockPos.MutableBlockPos scratch = INSTANCE.scratchPos.set(bx, by, bz);
+        if (!resolveLightBlock(world, scratch)) {
             level = 0;
+            bx = Mth.floor(x);
+            by = Mth.floor(y);
+            bz = Mth.floor(z);
         } else {
-            bx = offsetPos[0];
-            by = offsetPos[1];
-            bz = offsetPos[2];
+            bx = scratch.getX();
+            by = scratch.getY();
+            bz = scratch.getZ();
         }
 
         double renderX = x - 0.5D;
@@ -769,31 +994,26 @@ public enum ClientDynamicLightHandler {
             source = new DynamicLightSource(bx, by, bz, renderX, renderY, renderZ, 0, isPlayer);
             source.targetLevel = targetted;
             lightMap.put(entityId, source);
-
-            List<DynamicLightSource> list = lightPositions.computeIfAbsent(newPos, k -> new ArrayList<>());
-            list.add(source);
-
+            addSourceToIndexes(source, newPos, lightPositions, lightCells);
             INSTANCE.updateMaxAndQueue(world, newPos, lightPositions);
+            INSTANCE.queueLightArea(renderX, renderY, renderZ);
         } else {
             long oldPos = packPosition(source.x, source.y, source.z);
             boolean movedBlock = oldPos != newPos;
             boolean movedRender = source.hasMovedSignificantly(renderX, renderY, renderZ);
             boolean targetChanged = source.targetLevel != targetted;
 
+            double oldRenderX = source.renderX;
+            double oldRenderY = source.renderY;
+            double oldRenderZ = source.renderZ;
+
             if (movedBlock) { // entity moved, update position
-                List<DynamicLightSource> oldList = lightPositions.get(oldPos);
-                if (oldList != null) {
-                    oldList.remove(source);
-                    if (oldList.isEmpty()) {
-                        lightPositions.remove(oldPos);
-                    }
-                }
+                removeSourceFromIndexes(source, oldPos, lightPositions, lightCells);
                 INSTANCE.updateMaxAndQueue(world, oldPos, lightPositions);
                 source.x = bx;
                 source.y = by;
                 source.z = bz;
-                List<DynamicLightSource> newList = lightPositions.computeIfAbsent(newPos, k -> new ArrayList<>());
-                newList.add(source);
+                addSourceToIndexes(source, newPos, lightPositions, lightCells);
                 INSTANCE.updateMaxAndQueue(world, newPos, lightPositions);
             }
 
@@ -805,8 +1025,11 @@ public enum ClientDynamicLightHandler {
                 source.targetLevel = targetted;
             }
 
-            if (movedBlock || movedRender) {
-                INSTANCE.queueRenderUpdate(source.x, source.y, source.z);
+            if (movedBlock) {
+                INSTANCE.queueLightArea(oldRenderX, oldRenderY, oldRenderZ);
+                INSTANCE.queueLightArea(renderX, renderY, renderZ);
+            } else if (movedRender) {
+                INSTANCE.queueLightArea(renderX, renderY, renderZ);
             }
         }
 

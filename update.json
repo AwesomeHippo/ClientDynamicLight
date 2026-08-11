@@ -1,11 +1,12 @@
 {
   "homepage": "https://www.curseforge.com/minecraft/mc-mods/client-dynamic-light",
   "1.20.1": {
+    "3.2.1": "Performance improvements",
     "3.2.0": "Fix and improvements",
     "3.1.0": "Initial 1.20.1 release"
   },
   "promos": {
-    "1.20.1-recommended": "3.2.0",
-    "1.20.1-latest": "3.2.0"
+    "1.20.1-recommended": "3.2.1",
+    "1.20.1-latest": "3.2.1"
   }
 }

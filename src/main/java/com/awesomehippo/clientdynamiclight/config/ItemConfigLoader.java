@@ -7,10 +7,11 @@
 package com.awesomehippo.clientdynamiclight.config;
 
 import java.util.Arrays;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.awesomehippo.clientdynamiclight.ClientDynamicLight;
-import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader.ItemConfig;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -18,11 +19,33 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
-public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
+public class ItemConfigLoader extends AbstractConfigLoader<ItemConfigLoader.ItemConfig> {
     public static final ItemConfigLoader INSTANCE = new ItemConfigLoader();
+
+    private final Map<Item, Integer> lightByItem = new IdentityHashMap<>();
 
     public ItemConfigLoader() {
         super(ItemConfig.class, "config_items.json");
+    }
+
+    @Override
+    public void load() {
+        super.load();
+        rebuildCache();
+    }
+
+    public void rebuildCache() {
+        lightByItem.clear();
+        if (this.config == null || this.config.items == null) {
+            return;
+        }
+
+        for (ItemRule rule : this.config.items) {
+            Item item = rule.item();
+            if (item != null) {
+                lightByItem.put(item, rule.actualLightLevel());
+            }
+        }
     }
 
     public boolean enabled(Level level, ItemCheckType type) {
@@ -57,13 +80,8 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfig> {
             return -1;
         }
 
-        for (ItemRule rule : this.config.items) {
-            if (rule.matches(stack)) {
-                return rule.actualLightLevel();
-            }
-        }
-
-        return -1;
+        Integer cached = lightByItem.get(stack.getItem());
+        return cached != null ? cached : -1;
     }
 
     @Override

@@ -10,10 +10,9 @@ import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader.ItemCheckType;
 
-import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -23,11 +22,7 @@ import net.minecraft.world.level.Level;
 public class EntityLightLevelHelper {
 
     public static int getLightLevel(Level level, Entity entity) {
-        int blockX = Mth.floor(entity.getX());
-        int blockY = Mth.floor(entity.getY());
-        int blockZ = Mth.floor(entity.getZ());
-
-        if (level.getFluidState(new BlockPos(blockX, blockY, blockZ)).is(FluidTags.LAVA)) {
+        if (level.getFluidState(entity.blockPosition()).is(FluidTags.LAVA)) {
             return -1;
         }
 
@@ -94,24 +89,24 @@ public class EntityLightLevelHelper {
 
     private static int getArmorLightLevel(LivingEntity entity) {
         return getMaxLightLevel(
-            entity.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET),
-            entity.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.LEGS),
-            entity.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST),
-            entity.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD)
+            entity.getItemBySlot(EquipmentSlot.FEET),
+            entity.getItemBySlot(EquipmentSlot.LEGS),
+            entity.getItemBySlot(EquipmentSlot.CHEST),
+            entity.getItemBySlot(EquipmentSlot.HEAD)
         );
     }
 
     private static int getMaxLightLevel(ItemStack... stacks) {
-        int level = -1;
+        int lightLevel = -1;
         for (ItemStack stack : stacks) {
             if (stack.isEmpty()) {
                 continue;
             }
 
-            level = Math.max(level, ItemConfigLoader.INSTANCE.getLightLevel(stack));
+            lightLevel = Math.max(lightLevel, ItemConfigLoader.INSTANCE.getLightLevel(stack));
         }
 
-        return level;
+        return lightLevel;
     }
 
 }

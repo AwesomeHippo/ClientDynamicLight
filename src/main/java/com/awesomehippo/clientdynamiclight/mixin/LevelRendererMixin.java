@@ -42,8 +42,9 @@ public class LevelRendererMixin {
             return;
         }
 
-        int modified = ClientDynamicLightHandler.applyDynamicLightToPacked(cir.getReturnValue(), pos);
-        if (modified != cir.getReturnValue()) {
+        int original = cir.getReturnValue();
+        int modified = ClientDynamicLightHandler.applyDynamicLightToPacked(original, pos);
+        if (modified != original) {
             cir.setReturnValue(modified);
         }
     }
