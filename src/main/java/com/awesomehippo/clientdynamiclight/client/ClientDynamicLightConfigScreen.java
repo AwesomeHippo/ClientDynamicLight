@@ -6,21 +6,24 @@
 
 package com.awesomehippo.clientdynamiclight.client;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.lwjgl.glfw.GLFW;
 
 import com.awesomehippo.clientdynamiclight.ClientDynamicLightHandler;
-import com.awesomehippo.clientdynamiclight.client.gui.controls.ConfigButton;
 import com.awesomehippo.clientdynamiclight.client.gui.controls.ConfigControl;
 import com.awesomehippo.clientdynamiclight.client.gui.controls.ConfigSlider;
 import com.awesomehippo.clientdynamiclight.client.gui.controls.ConfigToggle;
+import com.awesomehippo.clientdynamiclight.config.ConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
 import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader;
 
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -33,8 +36,7 @@ public class ClientDynamicLightConfigScreen extends Screen {
     private static final int ROW_COUNT = 9;
 
     private final Screen parent;
-    private final ConfigControl[] controls = new ConfigControl[200];
-    private int nextControlId;
+    private final List<ConfigControl> controls = new ArrayList<>();
     private int yOffset;
     private int contentTop;
     private int buttonHeight = BUTTON_HEIGHT;
@@ -50,11 +52,8 @@ public class ClientDynamicLightConfigScreen extends Screen {
     @Override
     protected void init() {
         clearWidgets();
-        for (int i = 0; i < controls.length; i++) {
-            controls[i] = null;
-        }
+        controls.clear();
 
-        nextControlId = 0;
         pairNextControls = false;
         hasCreatedLeft = false;
 
@@ -90,10 +89,7 @@ public class ClientDynamicLightConfigScreen extends Screen {
             + buttonHeight;
         if (scaledContentHeight > availableHeight) {
             int overflow = scaledContentHeight - availableHeight;
-            controlYSpacing = Math.max(
-                buttonHeight + 1,
-                controlYSpacing - (overflow + ROW_COUNT - 1) / ROW_COUNT
-            );
+            controlYSpacing = Math.max(buttonHeight + 1, controlYSpacing - (overflow + ROW_COUNT - 1) / ROW_COUNT);
         }
     }
 
@@ -178,6 +174,7 @@ public class ClientDynamicLightConfigScreen extends Screen {
             "clientdynamiclight.reload",
             "clientdynamiclight.tooltip.reload",
             () -> {
+                ConfigLoader.INSTANCE.load();
                 EntityConfigLoader.INSTANCE.load();
                 ItemConfigLoader.INSTANCE.load();
                 loadControls();
@@ -217,26 +214,6 @@ public class ClientDynamicLightConfigScreen extends Screen {
         );
 
         super.render(graphics, mouseX, mouseY, partialTick);
-        renderTooltip(graphics, mouseX, mouseY);
-    }
-
-    private void renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
-        for (Renderable widget : renderables) {
-            if (!(widget instanceof ConfigControl control)) {
-                continue;
-            }
-
-            String tooltip = control.tooltip();
-            if (tooltip == null) {
-                continue;
-            }
-
-            if (widget instanceof net.minecraft.client.gui.components.AbstractWidget abstractWidget
-                && abstractWidget.isHovered()) {
-                graphics.renderTooltip(font, Component.literal(tooltip), mouseX, mouseY);
-                return;
-            }
-        }
     }
 
     @Override
@@ -282,13 +259,14 @@ public class ClientDynamicLightConfigScreen extends Screen {
             rect.width,
             rect.height,
             Component.translatable(localeKey),
-            tooltipLocaleKey == null ? null : Component.translatable(tooltipLocaleKey),
             0,
             15,
             loader,
             saver
         );
-        addControl(control);
+        control.setTooltip(Tooltip.create(Component.translatable(tooltipLocaleKey)));
+        controls.add(control);
+        addRenderableWidget(control);
     }
 
     private void appendToggle(
@@ -304,31 +282,18 @@ public class ClientDynamicLightConfigScreen extends Screen {
             rect.width,
             rect.height,
             Component.translatable(localeKey),
-            tooltipLocaleKey == null ? null : Component.translatable(tooltipLocaleKey),
             loader,
             saver
         );
-        addControl(control);
+        control.setTooltip(Tooltip.create(Component.translatable(tooltipLocaleKey)));
+        controls.add(control);
+        addRenderableWidget(control);
     }
 
     private void appendButton(String localeKey, String tooltipLocaleKey, Runnable onClick) {
         BoundingRect rect = computeControlPos();
-        ConfigButton control = new ConfigButton(
-            rect.x,
-            rect.y,
-            rect.width,
-            rect.height,
-            Component.translatable(localeKey),
-            tooltipLocaleKey == null ? null : Component.translatable(tooltipLocaleKey),
-            onClick
-        );
-        addControl(control);
-    }
-
-    private void addControl(ConfigControl control) {
-        int id = nextControlId++;
-        controls[id] = control;
-        addRenderableWidget((net.minecraft.client.gui.components.AbstractWidget) control);
+        Tooltip tooltip = tooltipLocaleKey == null ? null : Tooltip.create(Component.translatable(tooltipLocaleKey));
+        addRenderableWidget(Button.builder(Component.translatable(localeKey), button -> onClick.run()).bounds(rect.x, rect.y, rect.width, rect.height).tooltip(tooltip).build());
     }
 
     private BoundingRect computeControlPos() {
@@ -354,27 +319,18 @@ public class ClientDynamicLightConfigScreen extends Screen {
         }
 
         yOffset += controlYSpacing;
-        return new BoundingRect(
-            centerX - buttonWidth / 2,
-            yOffset,
-            buttonWidth,
-            buttonHeight
-        );
+        return new BoundingRect(centerX - buttonWidth / 2, yOffset, buttonWidth, buttonHeight);
     }
 
     private void loadControls() {
         for (ConfigControl control : controls) {
-            if (control != null) {
-                control.load();
-            }
+            control.load();
         }
     }
 
     private void saveControls() {
         for (ConfigControl control : controls) {
-            if (control != null) {
-                control.save();
-            }
+            control.save();
         }
 
         EntityConfigLoader.INSTANCE.save();

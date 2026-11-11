@@ -13,14 +13,21 @@ import com.awesomehippo.clientdynamiclight.ClientDynamicLight;
 import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader.EntityConfig;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.GlowSquid;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.level.Level;
 
 public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
     public static final EntityConfigLoader INSTANCE = new EntityConfigLoader();
+
+    private static final List<EntityRule> BUILT_IN_ENTITIES = List.of(
+        new EntityRule("minecraft:blaze", 10, null, false),
+        new EntityRule("minecraft:glow_squid", 12, "glow_squid_lit", false),
+        new EntityRule("minecraft:fireball", 14, null, false),
+        new EntityRule("minecraft:small_fireball", 12, null, false)
+    );
 
     public EntityConfigLoader() {
         super(EntityConfig.class, "config_entities.json");
@@ -42,14 +49,22 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
     }
 
     public int getLightLevel(Entity entity) {
-        for (EntityRule rule : this.config.entities) {
+        if (this.config.entities != null) {
+            for (EntityRule rule : this.config.entities) {
+                if (rule != null && rule.matches(entity) && entity.isAlive()) {
+                    return rule.actualLightLevel();
+                }
+            }
+        }
+
+        for (EntityRule rule : BUILT_IN_ENTITIES) {
             if (rule.matches(entity) && entity.isAlive()) {
                 return rule.actualLightLevel();
             }
         }
 
         if (isBurning(entity) && this.config.burningDefault > 0) {
-            return this.config.burningDefault;
+            return Math.min(this.config.burningDefault, 15);
         }
 
         return -1;
@@ -109,6 +124,12 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
                 }
             }
 
+            if (entity instanceof GlowSquid glowSquid) {
+                if ("glow_squid_lit".equals(this.special)) {
+                    return glowSquid.getDarkTicksRemaining() == 0;
+                }
+            }
+
             return this.special == null;
         }
     }
@@ -120,13 +141,13 @@ public class EntityConfigLoader extends AbstractConfigLoader<EntityConfig> {
         private transient EntityType<?> entityType;
 
         public LazyEntityRule(String id) {
-            this.id = id.contains(":") ? id : "minecraft:" + id.toLowerCase();
+            this.id = id;
         }
 
         protected EntityType<?> entityType() {
             if (!this.hasLookedUp) {
                 this.hasLookedUp = true;
-                this.entityType = BuiltInRegistries.ENTITY_TYPE.get(new ResourceLocation(this.id));
+                this.entityType = fromRegistry(BuiltInRegistries.ENTITY_TYPE, this.id);
 
                 if (this.entityType == null) {
                     ClientDynamicLight.LOGGER.warn("Unknown entity in config: {}", this.id);

@@ -12,6 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.awesomehippo.clientdynamiclight.client.ClientDynamicLightConfigScreen;
+import com.awesomehippo.clientdynamiclight.config.ConfigLoader;
+import com.awesomehippo.clientdynamiclight.config.EntityConfigLoader;
+import com.awesomehippo.clientdynamiclight.config.ItemConfigLoader;
 
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.ConfigScreenHandler;
@@ -20,6 +23,7 @@ import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
 
@@ -31,7 +35,7 @@ public class ClientDynamicLight {
 
     public ClientDynamicLight() {
         if (FMLEnvironment.dist == Dist.CLIENT) {
-            IEventBus modBus = net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus();
+            IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
             modBus.addListener(this::onClientSetup);
 
             ModLoadingContext.get().registerExtensionPoint(
@@ -48,8 +52,9 @@ public class ClientDynamicLight {
     private void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
             getConfigDir().toFile().mkdirs();
-            com.awesomehippo.clientdynamiclight.config.ItemConfigLoader.INSTANCE.load();
-            com.awesomehippo.clientdynamiclight.config.EntityConfigLoader.INSTANCE.load();
+            ConfigLoader.INSTANCE.load();
+            ItemConfigLoader.INSTANCE.load();
+            EntityConfigLoader.INSTANCE.load();
             MinecraftForge.EVENT_BUS.register(ClientDynamicLightHandler.INSTANCE);
         });
     }

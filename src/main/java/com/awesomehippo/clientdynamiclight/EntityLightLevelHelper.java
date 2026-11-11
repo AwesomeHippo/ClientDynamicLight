@@ -31,7 +31,7 @@ public class EntityLightLevelHelper {
                 return -1;
             }
 
-            return ItemConfigLoader.INSTANCE.getLightLevel(itemEntity.getItem());
+            return ItemConfigLoader.INSTANCE.getLightLevel(itemEntity.getItem(), itemEntity.isUnderWater());
         }
 
         if (entity instanceof Player player) {
@@ -50,16 +50,19 @@ public class EntityLightLevelHelper {
     }
 
     private static int getPlayerLightLevel(Player player, Level level) {
+        if (player.isSpectator()) {
+            return -1;
+        }
+
         int lightLevel = -1;
 
+        if (EntityConfigLoader.INSTANCE.enabled(level)) {
+            lightLevel = EntityConfigLoader.INSTANCE.getLightLevel(player);
+        }
+
         if (ItemConfigLoader.INSTANCE.enabled(level, ItemCheckType.WIELDED)) {
-            lightLevel = Math.max(
-                lightLevel,
-                getMaxLightLevel(
-                    player.getMainHandItem(),
-                    player.getOffhandItem()
-                )
-            );
+            int heldLight = getMaxLightLevel(player.isUnderWater(), player.getMainHandItem(), player.getOffhandItem());
+            lightLevel = Math.max(lightLevel, heldLight);
         }
 
         if (ItemConfigLoader.INSTANCE.enabled(level, ItemCheckType.WEARING)) {
@@ -77,7 +80,8 @@ public class EntityLightLevelHelper {
         int lightLevel = EntityConfigLoader.INSTANCE.getLightLevel(entity);
 
         if (ItemConfigLoader.INSTANCE.enabled(level, ItemCheckType.WIELDED)) {
-            lightLevel = Math.max(lightLevel, getMaxLightLevel(entity.getMainHandItem()));
+            int heldLight = getMaxLightLevel(entity.isUnderWater(), entity.getMainHandItem(), entity.getOffhandItem());
+            lightLevel = Math.max(lightLevel, heldLight);
         }
 
         if (ItemConfigLoader.INSTANCE.enabled(level, ItemCheckType.WEARING)) {
@@ -88,22 +92,17 @@ public class EntityLightLevelHelper {
     }
 
     private static int getArmorLightLevel(LivingEntity entity) {
-        return getMaxLightLevel(
-            entity.getItemBySlot(EquipmentSlot.FEET),
-            entity.getItemBySlot(EquipmentSlot.LEGS),
-            entity.getItemBySlot(EquipmentSlot.CHEST),
-            entity.getItemBySlot(EquipmentSlot.HEAD)
-        );
+        return getMaxLightLevel(entity.isUnderWater(), entity.getItemBySlot(EquipmentSlot.FEET), entity.getItemBySlot(EquipmentSlot.LEGS), entity.getItemBySlot(EquipmentSlot.CHEST), entity.getItemBySlot(EquipmentSlot.HEAD));
     }
 
-    private static int getMaxLightLevel(ItemStack... stacks) {
+    private static int getMaxLightLevel(boolean underwater, ItemStack... stacks) {
         int lightLevel = -1;
         for (ItemStack stack : stacks) {
             if (stack.isEmpty()) {
                 continue;
             }
 
-            lightLevel = Math.max(lightLevel, ItemConfigLoader.INSTANCE.getLightLevel(stack));
+            lightLevel = Math.max(lightLevel, ItemConfigLoader.INSTANCE.getLightLevel(stack, underwater));
         }
 
         return lightLevel;

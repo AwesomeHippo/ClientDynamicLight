@@ -14,7 +14,6 @@ import net.minecraft.network.chat.Component;
 
 public class ConfigSlider extends AbstractSliderButton implements ConfigControl {
     private final Component prefix;
-    private final Component tooltip;
     private final Supplier<Integer> loader;
     private final Consumer<Integer> saver;
     private final int min;
@@ -26,7 +25,6 @@ public class ConfigSlider extends AbstractSliderButton implements ConfigControl 
         int width,
         int height,
         Component prefix,
-        Component tooltip,
         int min,
         int max,
         Supplier<Integer> loader,
@@ -34,7 +32,6 @@ public class ConfigSlider extends AbstractSliderButton implements ConfigControl 
     ) {
         super(x, y, width, height, Component.empty(), 0.0);
         this.prefix = prefix;
-        this.tooltip = tooltip;
         this.loader = loader;
         this.saver = saver;
         this.min = min;
@@ -59,11 +56,6 @@ public class ConfigSlider extends AbstractSliderButton implements ConfigControl 
     public void setValueInt(int value) {
         this.value = (value - min) / (double) (max - min);
         updateMessage();
-    }
-
-    @Override
-    public String tooltip() {
-        return tooltip == null ? null : tooltip.getString();
     }
 
     @Override

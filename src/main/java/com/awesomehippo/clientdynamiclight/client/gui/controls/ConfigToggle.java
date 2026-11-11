@@ -9,12 +9,13 @@ package com.awesomehippo.clientdynamiclight.client.gui.controls;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
 public class ConfigToggle extends Button implements ConfigControl {
     private final Component label;
-    private final Component tooltip;
     private final Supplier<Boolean> loader;
     private final Consumer<Boolean> saver;
     private boolean value;
@@ -25,13 +26,11 @@ public class ConfigToggle extends Button implements ConfigControl {
         int width,
         int height,
         Component label,
-        Component tooltip,
         Supplier<Boolean> loader,
         Consumer<Boolean> saver
     ) {
         super(x, y, width, height, Component.empty(), button -> ((ConfigToggle) button).toggle(), DEFAULT_NARRATION);
         this.label = label;
-        this.tooltip = tooltip;
         this.loader = loader;
         this.saver = saver;
     }
@@ -42,15 +41,9 @@ public class ConfigToggle extends Button implements ConfigControl {
     }
 
     private void updateMessage() {
-        String checked = value
-            ? "§a✓ ON"
-            : "§c✗ OFF";
-        setMessage(Component.literal(label.getString() + ": " + checked));
-    }
-
-    @Override
-    public String tooltip() {
-        return tooltip == null ? null : tooltip.getString();
+        ChatFormatting color = value ? ChatFormatting.GREEN : ChatFormatting.RED;
+        Component status = CommonComponents.optionStatus(value).copy().withStyle(color);
+        setMessage(CommonComponents.optionNameValue(label, status));
     }
 
     @Override

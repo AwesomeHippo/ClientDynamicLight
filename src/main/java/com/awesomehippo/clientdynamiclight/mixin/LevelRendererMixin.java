@@ -33,10 +33,6 @@ public class LevelRendererMixin {
         BlockPos pos,
         CallbackInfoReturnable<Integer> cir
     ) {
-        if (ClientDynamicLightHandler.shouldSkipDynamicLight(level, pos, state)) {
-            return;
-        }
-
         // skip solid blocks under AO (avoid strange shadow issue around edges)
         if (Minecraft.useAmbientOcclusion() && state.isSolidRender(level, pos)) {
             return;

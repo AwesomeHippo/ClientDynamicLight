@@ -8,8 +8,6 @@ package com.awesomehippo.clientdynamiclight.client.gui.controls;
 
 public interface ConfigControl {
 
-    String tooltip();
-
     void load();
 
     void save();

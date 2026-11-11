@@ -7,18 +7,16 @@
 package com.awesomehippo.clientdynamiclight.config;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.Writer;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
 import com.awesomehippo.clientdynamiclight.ClientDynamicLight;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+
+import net.minecraft.core.Registry;
+import net.minecraft.resources.ResourceLocation;
 
 public abstract class AbstractConfigLoader<T> {
     static final Gson GSON = new GsonBuilder()
@@ -46,22 +44,21 @@ public abstract class AbstractConfigLoader<T> {
             return;
         }
 
-        try (
-            InputStream fis = Files.newInputStream(file);
-            Reader r = new InputStreamReader(fis, StandardCharsets.UTF_8)
-        ) {
+        try (Reader r = Files.newBufferedReader(file)) {
             this.config = GSON.fromJson(r, this.configClass);
         } catch (Exception e) {
             ClientDynamicLight.LOGGER.error("Failed to load config: {}", fileName, e);
             this.config = this.defaultConfig();
         }
+
+        if (this.config == null) {
+            ClientDynamicLight.LOGGER.error("Empty config, using defaults: {}", fileName);
+            this.config = this.defaultConfig();
+        }
     }
 
     public void save() {
-        try (
-            OutputStream fos = Files.newOutputStream(file);
-            Writer writer = new OutputStreamWriter(fos, StandardCharsets.UTF_8)
-        ) {
+        try (Writer writer = Files.newBufferedWriter(file)) {
             GSON.toJson(this.config, writer);
         } catch (IOException e) {
             ClientDynamicLight.LOGGER.error("Failed to save config: {}", fileName, e);
@@ -70,6 +67,15 @@ public abstract class AbstractConfigLoader<T> {
 
     public T getConfig() {
         return this.config;
+    }
+
+    static <V> V fromRegistry(Registry<V> registry, String id) {
+        ResourceLocation location = id == null ? null : ResourceLocation.tryParse(id);
+        if (location == null || !registry.containsKey(location)) {
+            return null;
+        }
+
+        return registry.get(location);
     }
 
 }

@@ -30,16 +30,8 @@ public class KeyHandler {
 
     @SubscribeEvent
     public static void registerKeys(RegisterKeyMappingsEvent event) {
-        toggleDynamicLight = new KeyMapping(
-            "key.clientdynamiclight.toggle",
-            GLFW.GLFW_KEY_K,
-            CATEGORY
-        );
-        openConfig = new KeyMapping(
-            "key.clientdynamiclight.config",
-            GLFW.GLFW_KEY_L,
-            CATEGORY
-        );
+        toggleDynamicLight = new KeyMapping("key.clientdynamiclight.toggle", GLFW.GLFW_KEY_K, CATEGORY);
+        openConfig = new KeyMapping("key.clientdynamiclight.config", GLFW.GLFW_KEY_O, CATEGORY);
 
         event.register(toggleDynamicLight);
         event.register(openConfig);

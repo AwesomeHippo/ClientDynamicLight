@@ -7,22 +7,25 @@
 package com.awesomehippo.clientdynamiclight.config;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.awesomehippo.clientdynamiclight.ClientDynamicLight;
 
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 
 public class ItemConfigLoader extends AbstractConfigLoader<ItemConfigLoader.ItemConfig> {
     public static final ItemConfigLoader INSTANCE = new ItemConfigLoader();
 
     private final Map<Item, Integer> lightByItem = new IdentityHashMap<>();
+    private final Set<Item> waterSensitive = new HashSet<>();
 
     public ItemConfigLoader() {
         super(ItemConfig.class, "config_items.json");
@@ -36,14 +39,29 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfigLoader.Item
 
     public void rebuildCache() {
         lightByItem.clear();
-        if (this.config == null || this.config.items == null) {
-            return;
+        waterSensitive.clear();
+
+        if (this.config.items != null) {
+            for (ItemRule rule : this.config.items) {
+                if (rule == null) {
+                    continue;
+                }
+
+                Item item = rule.item();
+                if (item != null) {
+                    lightByItem.put(item, rule.actualLightLevel());
+                }
+            }
         }
 
-        for (ItemRule rule : this.config.items) {
-            Item item = rule.item();
-            if (item != null) {
-                lightByItem.put(item, rule.actualLightLevel());
+        if (this.config.waterSensitiveItems != null) {
+            for (String id : this.config.waterSensitiveItems) {
+                Item item = fromRegistry(BuiltInRegistries.ITEM, id);
+                if (item == null) {
+                    ClientDynamicLight.LOGGER.warn("Unknown item in config: {}", id);
+                } else {
+                    waterSensitive.add(item);
+                }
             }
         }
     }
@@ -75,13 +93,22 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfigLoader.Item
         return true;
     }
 
-    public int getLightLevel(ItemStack stack) {
+    public int getLightLevel(ItemStack stack, boolean underwater) {
         if (stack.isEmpty()) {
             return -1;
         }
 
-        Integer cached = lightByItem.get(stack.getItem());
-        return cached != null ? cached : -1;
+        Item item = stack.getItem();
+        if (underwater && waterSensitive.contains(item)) {
+            return -1;
+        }
+
+        return lightByItem.computeIfAbsent(item, ItemConfigLoader::getBlockLightLevel);
+    }
+
+    private static int getBlockLightLevel(Item item) {
+        int light = Block.byItem(item).defaultBlockState().getLightEmission();
+        return light > 0 ? light : -1;
     }
 
     @Override
@@ -109,6 +136,15 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfigLoader.Item
             new ItemRule("minecraft:jack_o_lantern", 15),
             new ItemRule("minecraft:blaze_powder", 12)
         );
+
+        private List<String> waterSensitiveItems = Arrays.asList(
+            "minecraft:torch",
+            "minecraft:soul_torch",
+            "minecraft:redstone_torch",
+            "minecraft:campfire",
+            "minecraft:soul_campfire",
+            "minecraft:lava_bucket"
+        );
     }
 
     public static class ItemRule extends LazyItemRule {
@@ -121,11 +157,6 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfigLoader.Item
 
         public int actualLightLevel() {
             return Math.max(0, Math.min(this.light, 15));
-        }
-
-        public boolean matches(ItemStack other) {
-            Item resolved = this.item();
-            return resolved != null && other.is(resolved);
         }
     }
 
@@ -142,7 +173,7 @@ public class ItemConfigLoader extends AbstractConfigLoader<ItemConfigLoader.Item
         protected Item item() {
             if (!this.hasLookedUp) {
                 this.hasLookedUp = true;
-                this.item = BuiltInRegistries.ITEM.get(new ResourceLocation(this.id));
+                this.item = fromRegistry(BuiltInRegistries.ITEM, this.id);
 
                 if (this.item == null) {
                     ClientDynamicLight.LOGGER.warn("Unknown item in config: {}", this.id);
